@@ -1,14 +1,23 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Plus, FileText, Camera } from 'lucide-react';
+import { ArrowLeft, Camera } from 'lucide-react';
 import { getExpenses, addExpense, getChildren, getAttendance } from '@/lib/store';
-import jsPDF from 'jspdf';
+import { generateInvoicePDF } from '@/lib/pdfGenerator';
+import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 
 export default function FinancesPage() {
     const [activeTab, setActiveTab] = useState('invoices'); // 'invoices' or 'expenses'
     const [children, setChildren] = useState([]);
     const [expenses, setExpenses] = useState([]);
+
+    // Invoice Preview Modal State
+    const [previewModal, setPreviewModal] = useState({
+        isOpen: false,
+        pdfDataUri: null,
+        fileName: null,
+        invoiceData: null
+    });
 
     // Expense Form
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
@@ -26,13 +35,12 @@ export default function FinancesPage() {
         setExpenseForm({ desc: '', amount: '' });
     };
 
-    const generateInvoice = (child) => {
-        // 1. Calculate hours (Mock logic: fetch attendance)
-        // In a real app, we'd filter by date range. Here we grab all completed sessions for simplicty or just mock "This Month".
-        // For MVP, lets sum up all 'unpaid' hours (we didn't implement paid flag yet, so just all completed sessions).
+    const handleGenerateInvoice = (child) => {
+        // Get all attendance sessions for this child
         const allAttendance = getAttendance();
         const childSessions = allAttendance.filter(a => a.childId === child.id && a.endTime);
 
+        // Calculate total hours
         let totalHours = 0;
         childSessions.forEach(s => {
             const start = new Date(s.startTime);
@@ -41,32 +49,62 @@ export default function FinancesPage() {
             totalHours += hours;
         });
 
-        // Round to 10 mins or just 2 decimals
         totalHours = Math.round(totalHours * 100) / 100;
-        const totalCost = (totalHours * child.rate).toFixed(2);
 
-        // 2. Generate PDF
-        const doc = new jsPDF();
-        doc.setFontSize(22);
-        doc.text("INVOICE", 20, 20);
+        // Prepare invoice data
+        const invoiceData = {
+            childName: child.name,
+            parentEmail: child.email || '',
+            totalHours: totalHours,
+            hourlyRate: child.rate,
+            sessions: childSessions
+        };
 
-        doc.setFontSize(16);
-        doc.text(`To: Parent of ${child.name}`, 20, 40);
-        doc.text(`Email: ${child.email || 'N/A'}`, 20, 50);
+        // Generate PDF
+        const { pdfDataUri, fileName } = generateInvoicePDF(invoiceData);
 
-        doc.setFontSize(12);
-        doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 70);
-        doc.text("------------------------------------------------", 20, 80);
-        doc.text(`Total Hours: ${totalHours} hrs`, 20, 90);
-        doc.text(`Hourly Rate: £${child.rate}`, 20, 100);
-        doc.text("------------------------------------------------", 20, 110);
+        // Open preview modal
+        setPreviewModal({
+            isOpen: true,
+            pdfDataUri,
+            fileName,
+            invoiceData
+        });
+    };
 
-        doc.setFontSize(18);
-        doc.text(`TOTAL DUE: £${totalCost}`, 20, 130);
+    const handleSendEmail = async () => {
+        const { invoiceData, pdfDataUri, fileName } = previewModal;
 
-        doc.save(`Invoice_${child.name}_${new Date().toISOString().split('T')[0]}.pdf`);
+        const response = await fetch('/api/send-invoice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                childName: invoiceData.childName,
+                parentEmail: invoiceData.parentEmail,
+                totalHours: invoiceData.totalHours,
+                totalCost: (invoiceData.totalHours * invoiceData.hourlyRate).toFixed(2),
+                pdfBase64: pdfDataUri,
+                fileName: fileName
+            }),
+        });
 
-        alert(`Invoice for ${child.name} downloaded!`);
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.details || 'Failed to send invoice');
+        }
+
+        return await response.json();
+    };
+
+    const closePreviewModal = () => {
+        setPreviewModal({
+            isOpen: false,
+            pdfDataUri: null,
+            fileName: null,
+            invoiceData: null
+        });
     };
 
     return (
@@ -96,25 +134,51 @@ export default function FinancesPage() {
                 <section>
                     <div className="card bg-blue">
                         <h3>Ready to Invoice</h3>
-                        <p>Tap a child to generate this month's invoice.</p>
+                        <p>Preview and send professional invoices to parents via email.</p>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {children.map(child => (
-                            <div key={child.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0 }}>
-                                <div>
-                                    <h3>{child.name}</h3>
-                                    <p>£{child.rate}/hr</p>
+                        {children.map(child => {
+                            // Calculate quick summary
+                            const allAttendance = getAttendance();
+                            const childSessions = allAttendance.filter(a => a.childId === child.id && a.endTime);
+                            let totalHours = 0;
+                            childSessions.forEach(s => {
+                                const start = new Date(s.startTime);
+                                const end = new Date(s.endTime);
+                                totalHours += (end - start) / (1000 * 60 * 60);
+                            });
+                            const totalCost = (totalHours * child.rate).toFixed(2);
+
+                            return (
+                                <div key={child.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0, flexWrap: 'wrap', gap: '1rem' }}>
+                                    <div>
+                                        <h3>{child.name}</h3>
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                            {totalHours.toFixed(1)} hrs @ £{child.rate}/hr = £{totalCost}
+                                        </p>
+                                        {child.email && (
+                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                                📧 {child.email}
+                                            </p>
+                                        )}
+                                        {!child.email && (
+                                            <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>
+                                                ⚠️ No email configured
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => handleGenerateInvoice(child)}
+                                        className="bg-blue"
+                                        style={{ padding: '0.8rem 1.2rem', borderRadius: '0.5rem', fontWeight: 600 }}
+                                        disabled={!child.email}
+                                    >
+                                        Preview Invoice
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => generateInvoice(child)}
-                                    className="bg-blue"
-                                    style={{ padding: '0.8rem 1.2rem', borderRadius: '0.5rem', fontWeight: 600 }}
-                                >
-                                    Generate PDF
-                                </button>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {children.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No children found.</p>}
                     </div>
                 </section>
@@ -163,6 +227,16 @@ export default function FinancesPage() {
                     </div>
                 </section>
             )}
+
+            {/* Invoice Preview Modal */}
+            <InvoicePreviewModal
+                isOpen={previewModal.isOpen}
+                onClose={closePreviewModal}
+                pdfDataUri={previewModal.pdfDataUri}
+                fileName={previewModal.fileName}
+                invoiceData={previewModal.invoiceData}
+                onSendEmail={handleSendEmail}
+            />
         </main>
     );
 }

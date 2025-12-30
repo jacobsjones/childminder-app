@@ -2,6 +2,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import Navigation from '@/components/Navigation';
+import VoiceAssistant from '@/components/VoiceAssistant';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }) {
                             {children}
                         </div>
                     </div>
+                    <VoiceAssistant />
                 </ThemeProvider>
             </body>
         </html>
