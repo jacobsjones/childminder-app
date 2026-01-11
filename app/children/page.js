@@ -11,7 +11,10 @@ export default function ChildrenPage() {
     const router = useRouter();
 
     useEffect(() => {
-        setChildren(getChildren());
+        const timer = setTimeout(() => {
+            setChildren(getChildren());
+        }, 0);
+        return () => clearTimeout(timer);
     }, []);
 
     const handleCreate = (e) => {

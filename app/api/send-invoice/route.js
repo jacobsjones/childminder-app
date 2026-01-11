@@ -2,10 +2,17 @@ import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { logInvoice, getChildren, getSettings } from '@/lib/serverStore';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request) {
     try {
+        if (!process.env.RESEND_API_KEY) {
+            console.error('RESEND_API_KEY is missing');
+            return NextResponse.json(
+                { error: 'Email service is not configured on the server.' },
+                { status: 500 }
+            );
+        }
+
+        const resend = new Resend(process.env.RESEND_API_KEY);
         const { childName, parentEmail, totalHours, totalCost, pdfBase64, fileName } = await request.json();
 
         // Validate required fields

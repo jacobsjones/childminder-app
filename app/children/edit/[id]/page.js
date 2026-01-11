@@ -13,13 +13,16 @@ export default function EditProfile() {
 
     useEffect(() => {
         if (id) {
-            const data = getChild(id);
-            if (data) {
-                setChild(data);
-            } else {
-                router.push('/children'); // Not found
-            }
-            setLoading(false);
+            const timer = setTimeout(() => {
+                const data = getChild(id);
+                if (data) {
+                    setChild(data);
+                } else {
+                    router.push('/children'); // Not found
+                }
+                setLoading(false);
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [id, router]);
 

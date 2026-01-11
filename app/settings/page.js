@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Moon, Sun, Monitor, Building2, Save } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -19,17 +19,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
-    const themeOptions = [
-        { id: 'system', label: 'System', icon: <Monitor size={20} /> },
-        { id: 'light', label: 'Light', icon: <Sun size={20} /> },
-        { id: 'dark', label: 'Dark', icon: <Moon size={20} /> },
-    ];
-
-    useEffect(() => {
-        loadSettings();
-    }, []);
-
-    const loadSettings = async () => {
+    const loadSettings = useCallback(async () => {
         // Sync from server
         try {
             const response = await fetch('/api/settings');
@@ -45,7 +35,18 @@ export default function SettingsPage() {
             setBusinessSettings(getSettings());
         }
         setLoading(false);
-    };
+    }, []);
+
+    const themeOptions = [
+        { id: 'system', label: 'System', icon: <Monitor size={20} /> },
+        { id: 'light', label: 'Light', icon: <Sun size={20} /> },
+        { id: 'dark', label: 'Dark', icon: <Moon size={20} /> },
+    ];
+
+    useEffect(() => {
+        const timer = setTimeout(() => loadSettings(), 0);
+        return () => clearTimeout(timer);
+    }, [loadSettings]);
 
     const handleSave = async (e) => {
         e.preventDefault();

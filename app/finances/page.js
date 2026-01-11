@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Camera } from 'lucide-react';
 import { getExpenses, addExpense, getChildren, getAttendance, getSettings, getInvoices } from '@/lib/store';
@@ -24,11 +24,7 @@ export default function FinancesPage() {
     // Expense Form
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setChildren(getChildren());
         setExpenses(getExpenses());
 
@@ -61,7 +57,12 @@ export default function FinancesPage() {
             console.error('Failed to load invoices:', error);
             setInvoices(getInvoices());
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        const timer = setTimeout(() => loadData(), 0);
+        return () => clearTimeout(timer);
+    }, [loadData]);
 
     const handleAddExpense = (e) => {
         e.preventDefault();

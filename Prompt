@@ -1,0 +1,34 @@
+Prompt:
+I am getting a build error on Vercel: Error: Missing API key. Pass it to the constructor new Resend("re_123").
+
+I have set the Environment Variable correctly, so the issue is likely that new Resend() is being called at the top level of the file, causing it to run during the build phase when the key might not be accessible.
+
+Please refactor app/api/send-invoice/route.js (and app/api/chat/route.ts if applicable):
+
+    Remove the global initialization:
+        Delete const resend = new Resend(process.env.RESEND_API_KEY); from the top of the file.
+
+    Initialize inside the function:
+        Move the initialization inside the POST function (or the tool execute function).
+        Example:
+
+        javascript
+
+    Copy
+    export async function POST(request) {  
+      const resend = new Resend(process.env.RESEND_API_KEY); // Initialize here!  
+      // ... rest of code  
+    }  
+
+Add a Safety Check:
+
+    Before using resend, add a check:
+
+    javascript
+
+        Copy
+        if (!process.env.RESEND_API_KEY) {  
+          throw new Error("RESEND_API_KEY is missing");  
+        }  
+
+Please apply this fix to all files where Resend is used.

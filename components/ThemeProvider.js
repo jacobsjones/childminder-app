@@ -12,7 +12,10 @@ export function ThemeProvider({ children }) {
     useEffect(() => {
         // Load saved theme
         const saved = localStorage.getItem('theme');
-        if (saved) setTheme(saved);
+        if (saved) {
+            const timer = setTimeout(() => setTheme(saved), 0);
+            return () => clearTimeout(timer);
+        }
     }, []);
 
     useEffect(() => {
