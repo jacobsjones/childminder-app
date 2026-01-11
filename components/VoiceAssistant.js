@@ -21,6 +21,8 @@ export default function VoiceAssistant() {
         },
         onError: (error) => {
             console.error('Chat error:', error);
+            // Show alert to user so they know something went wrong
+            alert(`AI Assistant Error: ${error.message || 'Something went wrong. Please check your connection or API key.'}`);
         },
     });
 
