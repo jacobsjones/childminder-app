@@ -1,32 +1,32 @@
-Prompt:
-I need to migrate my data storage from local JSON files to Vercel KV (Redis) because local files do not persist on Vercel.
+Objective:
+Fix the data "reverting" issue. The app is not showing the latest data from Vercel KV after an update, likely due to Next.js caching.
 
-1. Setup:
-I have already installed @vercel/kv and connected the database in Vercel.
+1. Force Dynamic Rendering:
+In app/page.js, app/children/[id]/page.js, and app/finances/page.js, add this line at the very top of the file:
 
-2. Rewrite lib/store.js:
-Please completely rewrite lib/store.js to use Vercel KV instead of fs (file system).
+javascript
 
-    Import: import { kv } from '@vercel/kv';
+Copy
+export const dynamic = 'force-dynamic';  
+export const revalidate = 0;  
 
-    Data Structure:
-        Store children in a key: user:default:children
-        Store attendance in a key: user:default:attendance
-        Store settings in a key: user:default:settings
-        Store invoices in a key: user:default:invoices
-        (Note: We use "user:default" prefix just in case we add multi-user support later, but for now it's single user).
+    Why: This tells Next.js "Never cache this page. Always fetch fresh data from the database when the user loads it."
 
-    Functions to Update:
-        getChildren() -> await kv.get('user:default:children') || []
-        saveChild(child) -> Fetch list, add child, await kv.set('...', list)
-        saveAttendance(record) -> Fetch list, add record, await kv.set('...', list)
-        ...and so on for getSettings, saveSettings, getInvoices, logInvoice.
+2. Update the Store (lib/store.js):
+When fetching data from Vercel KV, ensure we aren't using any cached fetch requests (though the KV SDK usually handles this, it's good to be safe).
 
-    Crucial Change: All functions in store.js must now be async.
-        You must update the components calling them (e.g., app/page.js, app/api/chat/route.ts) to await these calls.
+3. Check the "Save" Logic:
+In your Server Actions or API routes (where you save the hours), ensure you are waiting for the KV operation to finish before returning the response.
 
-3. Update API Routes:
+    Example:
 
-    Since store.js functions are now async, please check app/api/chat/route.ts and app/api/send-invoice/route.js and ensure we are using await getChildren(), await saveChild(), etc.
+    javascript
 
-Please provide the updated code for lib/store.js and instructions for updating the components.
+    Copy
+    // Correct  
+    await kv.set('user:default:attendance', newData);  
+    return NextResponse.json({ success: true });  
+
+        Incorrect: kv.set(...) (without await) -> This causes the page to reload before the save finishes.
+
+Please apply the force-dynamic fix to all main page files now.
