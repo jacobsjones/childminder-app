@@ -18,7 +18,7 @@ export default function Dashboard() {
             if (response.ok) {
                 const serverData = await response.json();
 
-                // Merge server data into localStorage
+                // Merge server data into localStorage (Legacy, keeping for now)
                 if (serverData.children && serverData.children.length > 0) {
                     localStorage.setItem('childminder_children', JSON.stringify(serverData.children));
                 }
@@ -30,16 +30,37 @@ export default function Dashboard() {
             console.error('[Dashboard] Failed to sync from server:', error);
         }
 
-        // Then load from localStorage
-        setChildren(getChildren());
-        setAttendance(getAttendance());
+        // Then load from Store (KV)
+        const rawChildren = await getChildren();
+        const rawAttendance = await getAttendance();
+        
+        // Enriched data
+        const enrichedChildren = await Promise.all(rawChildren.map(async (c) => {
+            const sum = c.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const icons = ['🐻', '☀️', '⭐'];
+            const icon = icons[sum % icons.length];
+            const totalHours = await getTotalHoursForChild(c.id);
+            
+            return {
+                ...c,
+                icon,
+                totalHours
+            };
+        }));
+
+        setChildren(enrichedChildren);
+        setAttendance(rawAttendance);
         setLoading(false);
     }, []);
 
     useEffect(() => {
-        // Run auto-scheduler logic on load
-        processScheduledAttendance();
-        const timer = setTimeout(() => loadData(), 0);
+        const init = async () => {
+            // Run auto-scheduler logic on load
+            await processScheduledAttendance();
+            await loadData();
+        };
+
+        const timer = setTimeout(() => init(), 0);
 
         // Listen for AI assistant updates
         const handleReload = () => {
@@ -55,8 +76,8 @@ export default function Dashboard() {
         };
     }, [loadData]);
 
-    const handleLogHours = (childId, childName) => {
-        const todayHours = getTodayHours(childId) || 0;
+    const handleLogHours = async (childId, childName) => {
+        const todayHours = await getTodayHours(childId) || 0;
         setModalState({
             isOpen: true,
             childId,
@@ -65,15 +86,15 @@ export default function Dashboard() {
         });
     };
 
-    const handleSaveHours = (hours) => {
-        logHours(modalState.childId, hours);
-        loadData();
+    const handleSaveHours = async (hours) => {
+        await logHours(modalState.childId, hours);
+        await loadData();
     };
 
-    const handleDeleteRecord = (recordId) => {
+    const handleDeleteRecord = async (recordId) => {
         if (confirm('Mark as absent? This will remove today\'s hours.')) {
-            deleteAttendance(recordId);
-            loadData();
+            await deleteAttendance(recordId);
+            await loadData();
         }
     };
 
@@ -96,18 +117,13 @@ export default function Dashboard() {
         return { hasHours: false, hours: 0, isAuto: false, record: null };
     };
 
-    const activeCount = children.filter(c => {
-        const s = getChildStatus(c.id);
-        return s.hasHours;
-    }).length;
-
     return (
         <main>
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
                     <h1>Hey Sue! ☀️</h1>
                     <p style={{ color: 'var(--text-secondary)' }}>
-                        You have {activeCount} children logged today.
+                        Dashboard is now cloud-powered.
                     </p>
                 </div>
             </header>
@@ -147,20 +163,11 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
         localStorage.setItem('dashboard_view_mode', mode);
     };
 
-    // deterministic icon based on name char code sum
-    const getIcon = (name) => {
-        const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const icons = ['🐻', '☀️', '⭐'];
-        return icons[sum % icons.length];
-    };
-
     const sortedData = childrenData.map(c => {
         const status = getChildStatus(c.id);
         return {
             ...c,
-            totalHours: getTotalHoursForChild(c.id),
-            todayStatus: status,
-            icon: getIcon(c.name)
+            todayStatus: status
         };
     }).sort((a, b) => {
         // Sort: logged today first, then by name

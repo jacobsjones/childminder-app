@@ -13,15 +13,16 @@ export default function EditProfile() {
 
     useEffect(() => {
         if (id) {
-            const timer = setTimeout(() => {
-                const data = getChild(id);
+            const load = async () => {
+                const data = await getChild(id);
                 if (data) {
                     setChild(data);
                 } else {
                     router.push('/children'); // Not found
                 }
                 setLoading(false);
-            }, 0);
+            };
+            const timer = setTimeout(() => load(), 0);
             return () => clearTimeout(timer);
         }
     }, [id, router]);
@@ -29,10 +30,10 @@ export default function EditProfile() {
     const handleSave = async (e) => {
         e.preventDefault();
 
-        // Save to client-side localStorage
-        saveChild(child);
+        // Save to Store (KV)
+        await saveChild(child);
 
-        // Also save to server-side storage
+        // Also save to server-side storage (Legacy sync)
         try {
             const response = await fetch('/api/children', {
                 method: 'POST',

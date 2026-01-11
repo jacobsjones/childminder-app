@@ -82,7 +82,7 @@ export async function POST(request) {
                         };
 
                         console.log(`[Tool: createChild] Calling saveChild with:`, newChild);
-                        saveChild(newChild);
+                        await saveChild(newChild);
                         console.log(`[Tool: createChild] saveChild completed successfully`);
 
                         const message = `Successfully added ${trimmedName} to your childminding list with a rate of £${numericRate}/hour.`;
@@ -109,7 +109,7 @@ export async function POST(request) {
                 execute: async ({ name, hours }) => {
                     console.log(`[Tool: logChildHours] Executing with name="${name}", hours=${hours}`);
                     try {
-                        const children = getChildren();
+                        const children = await getChildren();
                         const child = children.find(c =>
                             c.name.toLowerCase().includes(name.toLowerCase()) ||
                             name.toLowerCase().includes(c.name.toLowerCase())
@@ -121,7 +121,7 @@ export async function POST(request) {
                             return message;
                         }
 
-                        logHours(child.id, hours);
+                        await logHours(child.id, hours);
                         const message = `Successfully logged ${hours} hours for ${child.name} today.`;
                         console.log(`[Tool: logChildHours] Success:`, message);
                         return message;
@@ -140,7 +140,7 @@ export async function POST(request) {
                 execute: async ({ name }) => {
                     console.log(`[Tool: getTodayChildHours] Executing with name="${name}"`);
                     try {
-                        const children = getChildren();
+                        const children = await getChildren();
                         const child = children.find(c =>
                             c.name.toLowerCase().includes(name.toLowerCase()) ||
                             name.toLowerCase().includes(c.name.toLowerCase())
@@ -152,7 +152,7 @@ export async function POST(request) {
                             return message;
                         }
 
-                        const hours = getTodayHours(child.id);
+                        const hours = await getTodayHours(child.id);
                         if (hours === null) {
                             const message = `No hours logged for ${child.name} today.`;
                             console.log(`[Tool: getTodayChildHours] No hours:`, message);
@@ -177,7 +177,7 @@ export async function POST(request) {
                 execute: async ({ name }) => {
                     console.log(`[Tool: markAbsent] Executing with name="${name}"`);
                     try {
-                        const children = getChildren();
+                        const children = await getChildren();
                         const child = children.find(c =>
                             c.name.toLowerCase().includes(name.toLowerCase()) ||
                             name.toLowerCase().includes(c.name.toLowerCase())
@@ -190,7 +190,7 @@ export async function POST(request) {
                         }
 
                         // Find today's scheduled attendance
-                        const attendance = getAttendance();
+                        const attendance = await getAttendance();
                         const todayStr = new Date().toISOString().slice(0, 10);
                         const todayRecord = attendance.find(
                             a => a.childId === child.id &&
@@ -204,7 +204,7 @@ export async function POST(request) {
                             return message;
                         }
 
-                        deleteAttendance(todayRecord.id);
+                        await deleteAttendance(todayRecord.id);
                         const message = `Marked ${child.name} as absent for today.`;
                         console.log(`[Tool: markAbsent] Success:`, message);
                         return message;
@@ -221,7 +221,7 @@ export async function POST(request) {
                 execute: async () => {
                     console.log(`[Tool: listChildren] Executing`);
                     try {
-                        const children = getChildren();
+                        const children = await getChildren();
 
                         if (children.length === 0) {
                             const message = 'You don\'t have any children registered yet.';
@@ -252,7 +252,7 @@ export async function POST(request) {
 
                     try {
                         // 1. Find the child
-                        const children = getChildren();
+                        const children = await getChildren();
                         const child = children.find(c =>
                             c.name.toLowerCase().includes(childName.toLowerCase()) ||
                             childName.toLowerCase().includes(c.name.toLowerCase())
@@ -272,7 +272,7 @@ export async function POST(request) {
                         }
 
                         // 3. Get settings for bank details
-                        const settings = getSettings();
+                        const settings = await getSettings();
                         if (!settings.bankName) {
                             const message = `Please configure your business details in Settings first before sending invoices.`;
                             console.log(`[Tool: sendInvoice] No settings:`, message);
@@ -284,7 +284,7 @@ export async function POST(request) {
                         console.log(`[Tool: sendInvoice] Month parsed:`, { monthName, startDate, endDate });
 
                         // 5. Get attendance records for the month
-                        const allAttendance = getAttendance();
+                        const allAttendance = await getAttendance();
                         const childAttendance = allAttendance.filter(a => a.childId === child.id);
                         const monthAttendance = filterAttendanceByMonth(childAttendance, startDate, endDate);
 
@@ -391,7 +391,7 @@ export async function POST(request) {
                         console.log(`[Tool: sendInvoice] Email sent:`, emailResult);
 
                         // 9. Log the invoice
-                        logInvoice({
+                        await logInvoice({
                             childId: child.id,
                             childName: child.name,
                             parentEmail: child.email,

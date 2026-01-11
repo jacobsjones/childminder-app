@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 
 export async function GET() {
     try {
-        const invoices = getInvoices();
+        const invoices = await getInvoices();
         return NextResponse.json(invoices);
     } catch (error) {
         console.error('[Invoices API GET] Error:', error);
@@ -36,7 +36,7 @@ export async function POST(request) {
         }
 
         // Save to server-side storage
-        const record = logInvoice(invoiceData);
+        const record = await logInvoice(invoiceData);
 
         return NextResponse.json({ success: true, invoice: record });
     } catch (error) {

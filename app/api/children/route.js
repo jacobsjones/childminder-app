@@ -15,7 +15,7 @@ export async function POST(request) {
         }
 
         // Save to server-side storage
-        saveChild(childData);
+        await saveChild(childData);
 
         return NextResponse.json({ success: true });
     } catch (error) {

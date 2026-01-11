@@ -15,7 +15,7 @@ export async function POST(request) {
         }
 
         // Save to server-side storage
-        logHours(childId, hours, date);
+        await logHours(childId, hours, date);
 
         return NextResponse.json({ success: true });
     } catch (error) {

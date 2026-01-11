@@ -26,13 +26,13 @@ export default function SettingsPage() {
             if (response.ok) {
                 const serverSettings = await response.json();
                 setBusinessSettings(serverSettings);
-                // Also update localStorage
-                saveSettings(serverSettings);
+                // Also update Store (KV)
+                await saveSettings(serverSettings);
             }
         } catch (error) {
             console.error('Failed to load settings from server:', error);
-            // Fall back to localStorage
-            setBusinessSettings(getSettings());
+            // Fall back to Store (KV)
+            setBusinessSettings(await getSettings());
         }
         setLoading(false);
     }, []);
@@ -52,10 +52,10 @@ export default function SettingsPage() {
         e.preventDefault();
         setSaving(true);
 
-        // Save to client-side localStorage
-        saveSettings(businessSettings);
+        // Save to Store (KV)
+        await saveSettings(businessSettings);
 
-        // Also save to server-side storage
+        // Also save to server-side storage (Legacy sync)
         try {
             const response = await fetch('/api/settings', {
                 method: 'POST',

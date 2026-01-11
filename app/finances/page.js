@@ -25,8 +25,8 @@ export default function FinancesPage() {
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
 
     const loadData = useCallback(async () => {
-        setChildren(getChildren());
-        setExpenses(getExpenses());
+        setChildren(await getChildren());
+        setExpenses(await getExpenses());
 
         // Load settings from server
         try {
@@ -35,12 +35,12 @@ export default function FinancesPage() {
                 const serverSettings = await response.json();
                 setSettings(serverSettings);
             } else {
-                // Fall back to localStorage
-                setSettings(getSettings());
+                // Fall back to Store (KV)
+                setSettings(await getSettings());
             }
         } catch (error) {
             console.error('Failed to load settings:', error);
-            setSettings(getSettings());
+            setSettings(await getSettings());
         }
 
         // Load invoices from server
@@ -50,12 +50,12 @@ export default function FinancesPage() {
                 const serverInvoices = await response.json();
                 setInvoices(serverInvoices);
             } else {
-                // Fall back to localStorage
-                setInvoices(getInvoices());
+                // Fall back to Store (KV)
+                setInvoices(await getInvoices());
             }
         } catch (error) {
             console.error('Failed to load invoices:', error);
-            setInvoices(getInvoices());
+            setInvoices(await getInvoices());
         }
     }, []);
 
@@ -64,17 +64,49 @@ export default function FinancesPage() {
         return () => clearTimeout(timer);
     }, [loadData]);
 
-    const handleAddExpense = (e) => {
+    const [summaries, setSummaries] = useState({});
+
+    useEffect(() => {
+        const updateSummaries = async () => {
+            const allAttendance = await getAttendance();
+            const newSummaries = {};
+            
+            for (const child of children) {
+                const childSessions = allAttendance.filter(a => a.childId === child.id && (a.hours !== undefined || a.endTime));
+                let totalHours = 0;
+                childSessions.forEach(s => {
+                    if (s.hours !== undefined) {
+                        totalHours += s.hours;
+                    } else if (s.startTime && s.endTime) {
+                        const start = new Date(s.startTime);
+                        const end = new Date(s.endTime);
+                        totalHours += (end - start) / (1000 * 60 * 60);
+                    }
+                });
+                newSummaries[child.id] = {
+                    hours: totalHours,
+                    cost: (totalHours * child.rate).toFixed(2)
+                };
+            }
+            setSummaries(newSummaries);
+        };
+
+        if (children.length > 0) {
+            updateSummaries();
+        }
+    }, [children]);
+
+    const handleAddExpense = async (e) => {
         e.preventDefault();
         if (!expenseForm.desc || !expenseForm.amount) return;
-        addExpense({ description: expenseForm.desc, amount: parseFloat(expenseForm.amount), type: 'expense' });
-        setExpenses(getExpenses());
+        await addExpense({ description: expenseForm.desc, amount: parseFloat(expenseForm.amount), type: 'expense' });
+        setExpenses(await getExpenses());
         setExpenseForm({ desc: '', amount: '' });
     };
 
-    const handleGenerateInvoice = (child) => {
+    const handleGenerateInvoice = async (child) => {
         // Get all attendance sessions for this child
-        const allAttendance = getAttendance();
+        const allAttendance = await getAttendance();
         const childSessions = allAttendance.filter(a => {
             // Include hours-based records or completed time-based records
             return a.childId === child.id && (a.hours !== undefined || a.endTime);
@@ -186,23 +218,14 @@ export default function FinancesPage() {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {children.map(child => {
-                            // Calculate quick summary
-                            const allAttendance = getAttendance();
-                            const childSessions = allAttendance.filter(a => a.childId === child.id && a.endTime);
-                            let totalHours = 0;
-                            childSessions.forEach(s => {
-                                const start = new Date(s.startTime);
-                                const end = new Date(s.endTime);
-                                totalHours += (end - start) / (1000 * 60 * 60);
-                            });
-                            const totalCost = (totalHours * child.rate).toFixed(2);
+                            const summary = summaries[child.id] || { hours: 0, cost: '0.00' };
 
                             return (
                                 <div key={child.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0, flexWrap: 'wrap', gap: '1rem' }}>
                                     <div>
                                         <h3>{child.name}</h3>
                                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                            {totalHours.toFixed(1)} hrs @ £{child.rate}/hr = £{totalCost}
+                                            {summary.hours.toFixed(1)} hrs @ £{child.rate}/hr = £{summary.cost}
                                         </p>
                                         {child.email && (
                                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>

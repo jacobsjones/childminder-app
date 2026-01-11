@@ -6,8 +6,8 @@ export const runtime = 'nodejs';
 
 export async function GET() {
     try {
-        const children = getChildren();
-        const attendance = getAttendance();
+        const children = await getChildren();
+        const attendance = await getAttendance();
 
         return NextResponse.json({
             children,

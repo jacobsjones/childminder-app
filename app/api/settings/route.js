@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 
 export async function GET() {
     try {
-        const settings = getSettings();
+        const settings = await getSettings();
         return NextResponse.json(settings);
     } catch (error) {
         console.error('[Settings API GET] Error:', error);
@@ -28,7 +28,7 @@ export async function POST(request) {
         }
 
         // Save to server-side storage
-        saveSettings(settingsData);
+        await saveSettings(settingsData);
 
         return NextResponse.json({ success: true });
     } catch (error) {

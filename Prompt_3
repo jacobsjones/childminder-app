@@ -1,0 +1,32 @@
+Prompt:
+I need to migrate my data storage from local JSON files to Vercel KV (Redis) because local files do not persist on Vercel.
+
+1. Setup:
+I have already installed @vercel/kv and connected the database in Vercel.
+
+2. Rewrite lib/store.js:
+Please completely rewrite lib/store.js to use Vercel KV instead of fs (file system).
+
+    Import: import { kv } from '@vercel/kv';
+
+    Data Structure:
+        Store children in a key: user:default:children
+        Store attendance in a key: user:default:attendance
+        Store settings in a key: user:default:settings
+        Store invoices in a key: user:default:invoices
+        (Note: We use "user:default" prefix just in case we add multi-user support later, but for now it's single user).
+
+    Functions to Update:
+        getChildren() -> await kv.get('user:default:children') || []
+        saveChild(child) -> Fetch list, add child, await kv.set('...', list)
+        saveAttendance(record) -> Fetch list, add record, await kv.set('...', list)
+        ...and so on for getSettings, saveSettings, getInvoices, logInvoice.
+
+    Crucial Change: All functions in store.js must now be async.
+        You must update the components calling them (e.g., app/page.js, app/api/chat/route.ts) to await these calls.
+
+3. Update API Routes:
+
+    Since store.js functions are now async, please check app/api/chat/route.ts and app/api/send-invoice/route.js and ensure we are using await getChildren(), await saveChild(), etc.
+
+Please provide the updated code for lib/store.js and instructions for updating the components.

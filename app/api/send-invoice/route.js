@@ -35,7 +35,7 @@ export async function POST(request) {
         });
 
         // Get settings for branding
-        const settings = getSettings();
+        const settings = await getSettings();
         const businessName = settings.businessName || 'LittleHours';
         const businessEmail = settings.businessEmail;
 
@@ -100,11 +100,11 @@ export async function POST(request) {
         const data = await resend.emails.send(emailOptions);
 
         // Log the invoice to history
-        const children = getChildren();
+        const children = await getChildren();
         const child = children.find(c => c.name === childName);
 
         if (child) {
-            logInvoice({
+            await logInvoice({
                 childId: child.id,
                 childName: childName,
                 parentEmail: parentEmail,

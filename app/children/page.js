@@ -11,24 +11,27 @@ export default function ChildrenPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setChildren(getChildren());
-        }, 0);
+        const load = async () => {
+            const data = await getChildren();
+            setChildren(data);
+        };
+        const timer = setTimeout(() => load(), 0);
         return () => clearTimeout(timer);
     }, []);
 
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
         const formData = new FormData(e.target);
         const name = formData.get('name');
 
         if (name) {
             const newChild = { name, rate: 0 }; // Default, can edit details later
-            saveChild(newChild);
-            setChildren(getChildren());
+            await saveChild(newChild);
+            const data = await getChildren();
+            setChildren(data);
             setIsAdding(false);
             // Optionally redirect to edit page immediately
-            const created = getChildren().find(c => c.name === name);
+            const created = data.find(c => c.name === name);
             if (created) router.push(`/children/edit/${created.id}`);
         }
     };

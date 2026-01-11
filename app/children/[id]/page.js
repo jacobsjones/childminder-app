@@ -13,13 +13,16 @@ export default function ChildProfile({ params }) {
 
     const [child, setChild] = useState(null);
     const [history, setHistory] = useState([]);
+    const [totalHoursAllTime, setTotalHoursAllTime] = useState(0);
     const [editingId, setEditingId] = useState(null);
     const [editForm, setEditForm] = useState({ hours: 0, date: '' });
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    const loadData = useCallback(() => {
-        setChild(getChild(id));
-        const allAttendance = getAttendance();
+    const loadData = useCallback(async () => {
+        const childData = await getChild(id);
+        setChild(childData);
+        
+        const allAttendance = await getAttendance();
         // Support both hours-based and time-based records
         const childHistory = allAttendance
             .filter(a => a.childId === id && (a.hours !== undefined || a.endTime))
@@ -29,6 +32,9 @@ export default function ChildProfile({ params }) {
                 return dateB - dateA;
             });
         setHistory(childHistory);
+
+        const total = await getTotalHoursForChild(id);
+        setTotalHoursAllTime(total.toFixed(1));
     }, [id]);
 
     useEffect(() => {
@@ -49,8 +55,6 @@ export default function ChildProfile({ params }) {
         }
         return 0;
     };
-
-    const totalHoursAllTime = getTotalHoursForChild(id).toFixed(1);
 
     // --- Analytics Data ---
     const getMonthlyData = () => {
@@ -97,9 +101,9 @@ export default function ChildProfile({ params }) {
         if (originalItem.hours !== undefined) {
             // Update hours-based record
             const hours = parseFloat(editForm.hours);
-            logHours(id, hours, editForm.date);
+            await logHours(id, hours, editForm.date);
 
-            // Also save to server
+            // Also save to server (Legacy sync, KV already handles it via logHours if we changed imports, but keeping for now)
             try {
                 await fetch('/api/attendance', {
                     method: 'POST',
@@ -120,18 +124,18 @@ export default function ChildProfile({ params }) {
                 startTime: new Date(editForm.start).toISOString(),
                 endTime: new Date(editForm.end).toISOString()
             };
-            updateAttendance(updated);
+            await updateAttendance(updated);
         }
         setEditingId(null);
-        loadData();
+        await loadData();
         router.refresh();
     };
 
     const handleManualSave = async ({ date, hours }) => {
-        // Save to client-side localStorage
-        logHours(id, hours, date);
+        // Save to Store (KV)
+        await logHours(id, hours, date);
 
-        // Also save to server-side storage
+        // Also save to server-side storage (Legacy sync)
         try {
             const response = await fetch('/api/attendance', {
                 method: 'POST',
@@ -150,14 +154,14 @@ export default function ChildProfile({ params }) {
             console.error('Error saving to server:', error);
         }
 
-        loadData();
+        await loadData();
         router.refresh();
     };
 
-    const handleDelete = (itemId) => {
+    const handleDelete = async (itemId) => {
         if (confirm('Are you sure you want to delete this record?')) {
-            deleteAttendance(itemId);
-            loadData();
+            await deleteAttendance(itemId);
+            await loadData();
         }
     };
 
