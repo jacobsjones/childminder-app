@@ -134,6 +134,19 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
     const [viewMode, setViewMode] = useState('list');
     const router = useRouter();
 
+    useEffect(() => {
+        // Load view preference
+        const savedView = localStorage.getItem('dashboard_view_mode');
+        if (savedView) {
+            setViewMode(savedView);
+        }
+    }, []);
+
+    const handleSetViewMode = (mode) => {
+        setViewMode(mode);
+        localStorage.setItem('dashboard_view_mode', mode);
+    };
+
     // deterministic icon based on name char code sum
     const getIcon = (name) => {
         const sum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -168,13 +181,13 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                 <h2>Children</h2>
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-color)', padding: '0.25rem', borderRadius: '0.5rem' }}>
                     <button
-                        onClick={() => setViewMode('list')}
+                        onClick={() => handleSetViewMode('list')}
                         style={{ padding: '0.4rem', borderRadius: '0.3rem', background: viewMode === 'list' ? 'var(--bg-card)' : 'transparent', boxShadow: viewMode === 'list' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none' }}
                     >
                         <List size={20} color="var(--text-color)" />
                     </button>
                     <button
-                        onClick={() => setViewMode('grid')}
+                        onClick={() => handleSetViewMode('grid')}
                         style={{ padding: '0.4rem', borderRadius: '0.3rem', background: viewMode === 'grid' ? 'var(--bg-card)' : 'transparent', boxShadow: viewMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none' }}
                     >
                         <LayoutGrid size={20} color="var(--text-color)" />
@@ -204,11 +217,13 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                 display: 'flex',
                                 flexDirection: viewMode === 'grid' ? 'column' : 'row',
                                 alignItems: 'center',
+                                justifyContent: viewMode === 'grid' ? 'space-between' : 'flex-start',
                                 gap: viewMode === 'grid' ? '0.5rem' : '1rem',
                                 textAlign: viewMode === 'grid' ? 'center' : 'left',
                                 transition: 'transform 0.1s',
                                 width: '100%',
-                                minWidth: 0
+                                minWidth: 0,
+                                aspectRatio: viewMode === 'grid' ? '1 / 1' : 'auto'
                             }}
                             className={viewMode === 'grid' ? '' : 'list-item'}
                         >
