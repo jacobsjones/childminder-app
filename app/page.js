@@ -267,49 +267,49 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                             </div>
 
                             {/* Action Button */}
-                            <div style={{ display: 'flex', gap: '0.4rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto', justifyContent: viewMode === 'grid' ? 'center' : 'flex-end', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto', justifyContent: 'center', flexShrink: 0 }}>
                                 {child.todayStatus.hasHours ? (
                                     <>
                                         <button
                                             onClick={() => onLogHours(child.id, child.name)}
                                             style={{
-                                                padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 0.8rem',
-                                                borderRadius: '9999px',
+                                                padding: '0.6rem',
+                                                borderRadius: '50%',
                                                 fontWeight: 600,
-                                                fontSize: viewMode === 'grid' ? '0.75rem' : '0.85rem',
+                                                fontSize: '0.85rem',
                                                 background: 'transparent',
                                                 color: 'var(--primary-blue-text)',
                                                 border: `2px solid var(--primary-blue)`,
                                                 whiteSpace: 'nowrap',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '0.3rem',
-                                                justifyContent: 'center'
+                                                justifyContent: 'center',
+                                                aspectRatio: '1/1'
                                             }}
+                                            title="Edit Hours"
                                         >
-                                            <Clock size={viewMode === 'grid' ? 14 : 16} />
-                                            {viewMode === 'grid' ? 'Edit' : <><span className="mobile-hidden">Edit</span> Hours</>}
+                                            <Clock size={20} />
                                         </button>
                                         {child.todayStatus.isAuto && (
                                             <button
                                                 onClick={() => onDeleteRecord(child.todayStatus.record.id)}
                                                 style={{
-                                                    padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 0.75rem',
+                                                    padding: '0.6rem',
                                                     background: 'transparent',
                                                     borderRadius: '0.5rem',
                                                     color: '#dc2626',
                                                     border: '2px solid #dc2626',
                                                     fontWeight: 600,
-                                                    fontSize: viewMode === 'grid' ? '0.75rem' : '0.85rem',
+                                                    fontSize: '0.85rem',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    gap: '0.3rem',
-                                                    whiteSpace: 'nowrap'
+                                                    whiteSpace: 'nowrap',
+                                                    aspectRatio: '1/1'
                                                 }}
+                                                title="Mark Absent"
                                             >
-                                                <XCircle size={viewMode === 'grid' ? 14 : 16} />
-                                                {viewMode === 'grid' ? 'Abs' : <span className="mobile-hidden">Absent</span>}
+                                                <XCircle size={20} />
                                             </button>
                                         )}
                                     </>
@@ -317,23 +317,21 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                     <button
                                         onClick={() => onLogHours(child.id, child.name)}
                                         style={{
-                                            width: viewMode === 'grid' ? '100%' : 'auto',
-                                            padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 1rem',
-                                            borderRadius: '9999px',
+                                            padding: '0.6rem',
+                                            borderRadius: '50%',
                                             fontWeight: 600,
-                                            fontSize: viewMode === 'grid' ? '0.75rem' : '0.85rem',
+                                            fontSize: '0.85rem',
                                             background: 'var(--primary-blue)',
                                             color: 'white',
                                             border: `2px solid var(--primary-blue)`,
-                                            marginTop: viewMode === 'grid' ? '0.2rem' : '0',
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '0.3rem',
-                                            justifyContent: 'center'
+                                            justifyContent: 'center',
+                                            aspectRatio: '1/1'
                                         }}
+                                        title="Log Hours"
                                     >
-                                        <Clock size={viewMode === 'grid' ? 14 : 16} />
-                                        {viewMode === 'grid' ? 'Log' : <><span className="mobile-hidden">Log</span> Hours</>}
+                                        <Clock size={20} />
                                     </button>
                                 )}
                             </div>
