@@ -283,3 +283,24 @@ textarea {
   border-top: 1px solid var(--border-color);
   margin-top: auto;
 }
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.w-full {
+  width: 100% !important;
+}
+
+@media (min-width: 768px) {
+  .settings-grid {
+    flex-direction: row;
+    display: flex;
+  }
+  
+  .settings-grid > div {
+    flex: 1;
+  }
+}

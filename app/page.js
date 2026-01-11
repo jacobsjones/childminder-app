@@ -185,7 +185,12 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
             {childrenData.length === 0 ? (
                 <p className="status-inactive">No children added yet.</p>
             ) : (
-                <div style={viewMode === 'grid' ? { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' } : { display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={viewMode === 'grid' ? { 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(2, 1fr)', 
+                    gap: '0.75rem',
+                    width: '100%'
+                } : { display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {sortedData.map((child) => (
                         <div
                             key={child.id}
@@ -195,13 +200,15 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                 background: viewMode === 'grid' ? 'var(--bg-color)' : 'transparent',
                                 border: viewMode === 'grid' ? 'none' : '1px solid var(--border-color)',
                                 borderRadius: '1rem',
-                                padding: viewMode === 'grid' ? '1.5rem' : '1rem',
+                                padding: viewMode === 'grid' ? '1rem 0.5rem' : '1rem',
                                 display: 'flex',
                                 flexDirection: viewMode === 'grid' ? 'column' : 'row',
                                 alignItems: 'center',
-                                gap: '1rem',
+                                gap: viewMode === 'grid' ? '0.5rem' : '1rem',
                                 textAlign: viewMode === 'grid' ? 'center' : 'left',
-                                transition: 'transform 0.1s'
+                                transition: 'transform 0.1s',
+                                width: '100%',
+                                minWidth: 0
                             }}
                             className={viewMode === 'grid' ? '' : 'list-item'}
                         >

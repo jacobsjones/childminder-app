@@ -1,34 +1,22 @@
-Prompt:
-I am getting a build error on Vercel: Error: Missing API key. Pass it to the constructor new Resend("re_123").
+Objective:
+Remove the blue styling from the top of the mobile app.
 
-I have set the Environment Variable correctly, so the issue is likely that new Resend() is being called at the top level of the file, causing it to run during the build phase when the key might not be accessible.
+1. Check app/layout.js (Metadata):
 
-Please refactor app/api/send-invoice/route.js (and app/api/chat/route.ts if applicable):
+    Look for the viewport export or metadata export.
+    Change the themeColor from the current blue (e.g., #2563eb) to black (#000000) or the dark grey background color (#121212). This will fix the blue status bar on iOS.
 
-    Remove the global initialization:
-        Delete const resend = new Resend(process.env.RESEND_API_KEY); from the top of the file.
+2. Check app/layout.js (HTML):
 
-    Initialize inside the function:
-        Move the initialization inside the POST function (or the tool execute function).
-        Example:
+    Look inside the <body> tag.
+    If there is a <div> or <nav> with bg-blue-XXX or bg-primary wrapping the {children}, remove that background class or the element entirely.
 
-        javascript
+3. Check app/globals.css:
 
-    Copy
-    export async function POST(request) {  
-      const resend = new Resend(process.env.RESEND_API_KEY); // Initialize here!  
-      // ... rest of code  
-    }  
+    Check if the :root variable --background or --foreground is set to a blue color.
 
-Add a Safety Check:
+4. Fix the Dashboard Centering (Recap):
 
-    Before using resend, add a check:
+    In app/page.js, ensure the main container for the cards has mx-auto and max-w-md (or similar) to center it on the screen.
 
-    javascript
-
-        Copy
-        if (!process.env.RESEND_API_KEY) {  
-          throw new Error("RESEND_API_KEY is missing");  
-        }  
-
-Please apply this fix to all files where Resend is used.
+Please check these specific files and remove the blue styling.

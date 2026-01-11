@@ -193,27 +193,31 @@ export default function SettingsPage() {
                                 required
                             />
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
+                            <div className="settings-grid" style={{ marginBottom: '1rem' }}>
+                                <div className="w-full">
                                     <label>Sort Code</label>
                                     <input
                                         type="text"
+                                        className="w-full"
                                         value={businessSettings.sortCode}
                                         onChange={(e) => setBusinessSettings({ ...businessSettings, sortCode: formatSortCode(e.target.value) })}
                                         placeholder="12-34-56"
                                         maxLength={8}
                                         required
+                                        style={{ marginBottom: 0 }}
                                     />
                                 </div>
-                                <div>
+                                <div className="w-full">
                                     <label>Account Number</label>
                                     <input
                                         type="text"
+                                        className="w-full"
                                         value={businessSettings.accountNumber}
                                         onChange={(e) => setBusinessSettings({ ...businessSettings, accountNumber: formatAccountNumber(e.target.value) })}
                                         placeholder="12345678"
                                         maxLength={8}
                                         required
+                                        style={{ marginBottom: 0 }}
                                     />
                                 </div>
                             </div>
