@@ -253,8 +253,8 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                             </div>
 
                             {/* Info */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <h3 style={{ marginBottom: '0.1rem', fontSize: viewMode === 'grid' ? '0.9rem' : '1.1rem', whiteSpace: viewMode === 'grid' ? 'nowrap' : 'normal', overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.name}</h3>
+                            <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
+                                <h3 style={{ marginBottom: '0.1rem', fontSize: viewMode === 'grid' ? '0.9rem' : '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.name}</h3>
                                 <div style={{ fontSize: viewMode === 'grid' ? '0.7rem' : '0.85rem', color: 'var(--text-secondary)' }}>
                                     {child.todayStatus.hasHours ? (
                                         <span style={{ color: 'var(--primary-green)', fontWeight: 600 }}>
@@ -267,13 +267,13 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                             </div>
 
                             {/* Action Button */}
-                            <div style={{ display: 'flex', gap: '0.4rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto', justifyContent: 'flex-end', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto', justifyContent: viewMode === 'grid' ? 'center' : 'flex-end', flexShrink: 0 }}>
                                 {child.todayStatus.hasHours ? (
                                     <>
                                         <button
                                             onClick={() => onLogHours(child.id, child.name)}
                                             style={{
-                                                padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 1rem',
+                                                padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 0.8rem',
                                                 borderRadius: '9999px',
                                                 fontWeight: 600,
                                                 fontSize: viewMode === 'grid' ? '0.75rem' : '0.85rem',
@@ -288,7 +288,7 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                             }}
                                         >
                                             <Clock size={viewMode === 'grid' ? 14 : 16} />
-                                            {viewMode === 'grid' ? 'Edit' : 'Log Hours'}
+                                            {viewMode === 'grid' ? 'Edit' : <><span className="mobile-hidden">Edit</span> Hours</>}
                                         </button>
                                         {child.todayStatus.isAuto && (
                                             <button
@@ -309,7 +309,7 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                                 }}
                                             >
                                                 <XCircle size={viewMode === 'grid' ? 14 : 16} />
-                                                {viewMode === 'grid' ? 'Abs' : 'Absent'}
+                                                {viewMode === 'grid' ? 'Abs' : <span className="mobile-hidden">Absent</span>}
                                             </button>
                                         )}
                                     </>
@@ -318,7 +318,7 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                         onClick={() => onLogHours(child.id, child.name)}
                                         style={{
                                             width: viewMode === 'grid' ? '100%' : 'auto',
-                                            padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 1.25rem',
+                                            padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem 1rem',
                                             borderRadius: '9999px',
                                             fontWeight: 600,
                                             fontSize: viewMode === 'grid' ? '0.75rem' : '0.85rem',
@@ -333,7 +333,7 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                         }}
                                     >
                                         <Clock size={viewMode === 'grid' ? 14 : 16} />
-                                        {viewMode === 'grid' ? 'Log' : 'Log Hours'}
+                                        {viewMode === 'grid' ? 'Log' : <><span className="mobile-hidden">Log</span> Hours</>}
                                     </button>
                                 )}
                             </div>

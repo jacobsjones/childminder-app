@@ -12,16 +12,18 @@ export const metadata = {
     manifest: '/manifest.json',
 };
 
+export const viewport = {
+    themeColor: '#121212',
+};
+
 export default function RootLayout({ children }) {
     return (
         <html lang="en">
             <body className={inter.className}>
                 <ThemeProvider>
                     <Navigation />
-                    <div className="container" style={{ margin: 0, padding: 0 }}>
-                        <div style={{ padding: '2rem' }}>
-                            {children}
-                        </div>
+                    <div className="container">
+                        {children}
                     </div>
                     <VoiceAssistant />
                 </ThemeProvider>
