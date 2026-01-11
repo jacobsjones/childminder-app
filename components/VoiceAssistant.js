@@ -1,17 +1,56 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Mic, MicOff, Loader2, Send, X, MessageSquare } from 'lucide-react';
+import { useChat } from 'ai/react';
 
 export default function VoiceAssistant() {
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [status, setStatus] = useState(null); // 'success' | 'error' | null
-    const [transcript, setTranscript] = useState('');
-    const [response, setResponse] = useState('');
-    const [showToast, setShowToast] = useState(false);
 
+    const router = useRouter();
     const recognitionRef = useRef(null);
-    const timeoutRef = useRef(null);
+    const messagesEndRef = useRef(null);
+
+    // Use the useChat hook for message management
+    const { messages, setMessages, input, setInput, handleInputChange, handleSubmit, append, isLoading } = useChat({
+        api: '/api/chat',
+        onFinish: (message) => {
+            // Trigger custom event to reload dashboard data from server
+            window.dispatchEvent(new CustomEvent('reloadDashboardData'));
+        },
+        onError: (error) => {
+            console.error('Chat error:', error);
+        },
+    });
+
+    // Load chat history from localStorage on mount
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('chat_history');
+            if (saved) {
+                try {
+                    setMessages(JSON.parse(saved));
+                } catch (e) {
+                    console.error('Failed to parse chat history:', e);
+                }
+            }
+        }
+    }, [setMessages]);
+
+    // Save chat history to localStorage whenever it changes
+    useEffect(() => {
+        if (messages.length > 0 && typeof window !== 'undefined') {
+            localStorage.setItem('chat_history', JSON.stringify(messages));
+        }
+    }, [messages]);
+
+    // Auto-scroll to bottom when new messages arrive
+    useEffect(() => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages]);
 
     useEffect(() => {
         // Initialize Speech Recognition
@@ -26,20 +65,25 @@ export default function VoiceAssistant() {
 
                 recognition.onresult = (event) => {
                     const transcript = event.results[0][0].transcript;
-                    setTranscript(transcript);
+                    console.log('[Voice] Transcript received:', transcript);
                     setIsListening(false);
-                    handleVoiceCommand(transcript);
+
+                    // Submit the voice command directly using append
+                    if (transcript.trim()) {
+                        append({
+                            role: 'user',
+                            content: transcript,
+                        });
+                    }
                 };
 
                 recognition.onerror = (event) => {
                     console.error('Speech recognition error:', event.error);
                     setIsListening(false);
-                    setStatus('error');
-                    setResponse('Sorry, I couldn\'t hear you. Please try again.');
-                    showToastMessage();
                 };
 
                 recognition.onend = () => {
+                    console.log('[Voice] Recognition ended');
                     setIsListening(false);
                 };
 
@@ -51,11 +95,8 @@ export default function VoiceAssistant() {
             if (recognitionRef.current) {
                 recognitionRef.current.abort();
             }
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
         };
-    }, []);
+    }, []); // Remove append from dependencies
 
     const toggleListening = () => {
         if (!recognitionRef.current) {
@@ -64,179 +105,240 @@ export default function VoiceAssistant() {
         }
 
         if (isListening) {
-            recognitionRef.current.stop();
+            console.log('[Voice] Stopping recognition');
+            try {
+                recognitionRef.current.stop();
+            } catch (e) {
+                console.error('[Voice] Error stopping recognition:', e);
+            }
             setIsListening(false);
         } else {
-            setTranscript('');
-            setResponse('');
-            setStatus(null);
+            console.log('[Voice] Starting recognition');
             setIsListening(true);
-            recognitionRef.current.start();
-        }
-    };
-
-    const handleVoiceCommand = async (text) => {
-        setIsProcessing(true);
-        setStatus(null);
-
-        try {
-            const response = await fetch('/api/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    message: text,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || data.details || 'Failed to process command');
+            try {
+                recognitionRef.current.start();
+            } catch (e) {
+                console.error('[Voice] Error starting recognition:', e);
+                setIsListening(false);
             }
-
-            setStatus('success');
-            setResponse(data.response || 'Command executed successfully!');
-            showToastMessage();
-
-            // Reload page data if needed
-            if (data.requiresReload) {
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1500);
-            }
-
-        } catch (error) {
-            console.error('Error processing voice command:', error);
-            setStatus('error');
-            setResponse(error.message || 'Sorry, something went wrong. Please try again.');
-            showToastMessage();
-        } finally {
-            setIsProcessing(false);
         }
-    };
-
-    const showToastMessage = () => {
-        setShowToast(true);
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
-        timeoutRef.current = setTimeout(() => {
-            setShowToast(false);
-        }, 4000);
-    };
-
-    const getButtonStyle = () => {
-        const baseStyle = {
-            position: 'fixed',
-            bottom: '90px',
-            right: '20px',
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-            transition: 'all 0.3s ease',
-            zIndex: 100,
-        };
-
-        if (isListening) {
-            return {
-                ...baseStyle,
-                background: '#ef4444',
-                animation: 'pulse 1.5s infinite',
-            };
-        }
-
-        if (isProcessing) {
-            return {
-                ...baseStyle,
-                background: '#f59e0b',
-            };
-        }
-
-        if (status === 'success') {
-            return {
-                ...baseStyle,
-                background: '#22c55e',
-            };
-        }
-
-        if (status === 'error') {
-            return {
-                ...baseStyle,
-                background: '#ef4444',
-            };
-        }
-
-        return {
-            ...baseStyle,
-            background: 'var(--primary-blue)',
-        };
     };
 
     return (
         <>
             {/* Floating Action Button */}
             <button
-                onClick={toggleListening}
-                style={getButtonStyle()}
-                disabled={isProcessing}
-                title={isListening ? 'Stop listening' : 'Start voice assistant'}
+                onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+                style={{
+                    position: 'fixed',
+                    bottom: '90px',
+                    right: '20px',
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                    transition: 'all 0.3s ease',
+                    zIndex: 100,
+                    background: isDrawerOpen ? '#ef4444' : 'var(--primary-blue)',
+                }}
+                title={isDrawerOpen ? 'Close assistant' : 'Open assistant'}
             >
-                {isProcessing ? (
-                    <Loader2 size={28} color="white" style={{ animation: 'spin 1s linear infinite' }} />
-                ) : status === 'success' ? (
-                    <CheckCircle size={28} color="white" />
-                ) : status === 'error' ? (
-                    <XCircle size={28} color="white" />
-                ) : isListening ? (
-                    <Mic size={28} color="white" />
+                {isDrawerOpen ? (
+                    <X size={28} color="white" />
                 ) : (
-                    <MicOff size={28} color="white" />
+                    <MessageSquare size={28} color="white" />
                 )}
             </button>
 
-            {/* Toast Notification */}
-            {showToast && (
+            {/* Chat Drawer */}
+            {isDrawerOpen && (
                 <div
                     style={{
                         position: 'fixed',
-                        bottom: '170px',
-                        right: '20px',
-                        maxWidth: '300px',
+                        bottom: '0',
+                        right: '0',
+                        width: '100%',
+                        maxWidth: '400px',
+                        height: '600px',
                         background: 'var(--bg-card)',
-                        border: `2px solid ${status === 'success' ? '#22c55e' : '#ef4444'}`,
-                        borderRadius: '12px',
-                        padding: '16px',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-                        zIndex: 100,
-                        animation: 'slideIn 0.3s ease-out',
+                        borderRadius: '16px 16px 0 0',
+                        boxShadow: '0 -4px 24px rgba(0, 0, 0, 0.3)',
+                        zIndex: 99,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        animation: 'slideUp 0.3s ease-out',
                     }}
                 >
-                    {transcript && (
-                        <div style={{ marginBottom: '8px' }}>
-                            <strong style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                                You said:
-                            </strong>
-                            <p style={{ margin: '4px 0', fontSize: '0.9rem', color: 'var(--text-color)' }}>
-                                "{transcript}"
-                            </p>
-                        </div>
-                    )}
-                    <div>
-                        <strong style={{ color: status === 'success' ? '#22c55e' : '#ef4444', fontSize: '0.75rem' }}>
-                            {status === 'success' ? '✓ Success' : '✗ Error'}
-                        </strong>
-                        <p style={{ margin: '4px 0 0', fontSize: '0.9rem', color: 'var(--text-color)' }}>
-                            {response}
-                        </p>
+                    {/* Header */}
+                    <div
+                        style={{
+                            padding: '1rem 1.5rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>AI Assistant</h3>
+                        <button
+                            onClick={() => setIsDrawerOpen(false)}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '0.25rem',
+                            }}
+                        >
+                            <X size={20} color="var(--text-secondary)" />
+                        </button>
                     </div>
+
+                    {/* Message History */}
+                    <div
+                        style={{
+                            flex: 1,
+                            overflowY: 'auto',
+                            padding: '1rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1rem',
+                        }}
+                    >
+                        {messages.length === 0 ? (
+                            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '2rem' }}>
+                                <MessageSquare size={48} color="var(--text-secondary)" style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                                <p>Start a conversation by typing below or using the microphone.</p>
+                            </div>
+                        ) : (
+                            messages.map((msg, idx) => (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                        maxWidth: '80%',
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            background: msg.role === 'user' ? 'var(--primary-blue)' : 'var(--bg-color)',
+                                            color: msg.role === 'user' ? 'white' : 'var(--text-color)',
+                                            padding: '0.75rem 1rem',
+                                            borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                                            fontSize: '0.95rem',
+                                            lineHeight: '1.4',
+                                            wordWrap: 'break-word',
+                                        }}
+                                    >
+                                        {msg.content}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                        {isLoading && (
+                            <div style={{ alignSelf: 'flex-start', maxWidth: '80%' }}>
+                                <div
+                                    style={{
+                                        background: 'var(--bg-color)',
+                                        padding: '0.75rem 1rem',
+                                        borderRadius: '16px 16px 16px 4px',
+                                        display: 'flex',
+                                        gap: '0.5rem',
+                                        alignItems: 'center',
+                                    }}
+                                >
+                                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                                    <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Thinking...</span>
+                                </div>
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* Input Area */}
+                    <form
+                        onSubmit={handleSubmit}
+                        style={{
+                            padding: '1rem',
+                            borderTop: '1px solid var(--border-color)',
+                            display: 'flex',
+                            gap: '0.5rem',
+                            alignItems: 'center',
+                        }}
+                    >
+                        <div
+                            style={{
+                                flex: 1,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                background: 'var(--bg-color)',
+                                borderRadius: '24px',
+                                padding: '0.5rem 1rem',
+                                border: '1px solid var(--border-color)',
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={toggleListening}
+                                style={{
+                                    background: isListening ? '#ef4444' : 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '0.5rem',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    transition: 'all 0.2s',
+                                }}
+                                title={isListening ? 'Stop listening' : 'Start voice input'}
+                            >
+                                {isListening ? (
+                                    <Mic size={20} color="white" style={{ animation: 'pulse 1s infinite' }} />
+                                ) : (
+                                    <MicOff size={20} color="var(--text-secondary)" />
+                                )}
+                            </button>
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={handleInputChange}
+                                placeholder="Type a message..."
+                                style={{
+                                    flex: 1,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    outline: 'none',
+                                    fontSize: '0.95rem',
+                                    color: 'var(--text-color)',
+                                }}
+                                disabled={isLoading}
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={!input.trim() || isLoading}
+                            style={{
+                                background: input.trim() && !isLoading ? 'var(--primary-blue)' : 'var(--bg-color)',
+                                border: 'none',
+                                cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+                                padding: '0.75rem',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s',
+                            }}
+                            title="Send message"
+                        >
+                            <Send size={20} color={input.trim() && !isLoading ? 'white' : 'var(--text-secondary)'} />
+                        </button>
+                    </form>
                 </div>
             )}
 
@@ -248,8 +350,8 @@ export default function VoiceAssistant() {
                         opacity: 1;
                     }
                     50% {
-                        transform: scale(1.1);
-                        opacity: 0.8;
+                        transform: scale(1.05);
+                        opacity: 0.9;
                     }
                 }
 
@@ -262,20 +364,21 @@ export default function VoiceAssistant() {
                     }
                 }
 
-                @keyframes slideIn {
+                @keyframes slideUp {
                     from {
-                        transform: translateX(400px);
+                        transform: translateY(100%);
                         opacity: 0;
                     }
                     to {
-                        transform: translateX(0);
+                        transform: translateY(0);
                         opacity: 1;
                     }
                 }
 
                 @media (max-width: 768px) {
-                    button {
-                        bottom: 80px !important;
+                    .chat-drawer {
+                        width: 100% !important;
+                        max-width: 100% !important;
                     }
                 }
             `}</style>

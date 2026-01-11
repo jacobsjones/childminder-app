@@ -1,19 +1,18 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, Banknote, Sun, Moon, Monitor } from 'lucide-react';
-import { useTheme } from './ThemeProvider';
+import { LayoutDashboard, Users, Banknote, Settings } from 'lucide-react';
 
 export default function Navigation() {
     const pathname = usePathname();
-    const { theme, setTheme } = useTheme();
 
     const isActive = (path) => pathname === path || (path !== '/' && pathname.startsWith(path));
 
     const navItems = [
         { name: 'Dashboard', path: '/', icon: LayoutDashboard },
         { name: 'Manage', path: '/children', icon: Users },
-        { name: 'Finances', path: '/finances', icon: Banknote },
+        { name: 'Invoicing', path: '/finances', icon: Banknote },
+        { name: 'Settings', path: '/settings', icon: Settings },
     ];
 
     return (
@@ -21,7 +20,7 @@ export default function Navigation() {
             {/* Desktop Sidebar */}
             <nav className="desktop-nav">
                 <div style={{ marginBottom: '2rem', padding: '0 1rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Childminder</h2>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: 800, background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>LittleHours</h2>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
@@ -35,18 +34,6 @@ export default function Navigation() {
                             <span>{item.name}</span>
                         </Link>
                     ))}
-                </div>
-
-                {/* Theme Toggle in Sidebar */}
-                <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)' }}>
-                    <button
-                        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                        className="nav-item"
-                        style={{ width: '100%', justifyContent: 'flex-start' }}
-                    >
-                        {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                        <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-                    </button>
                 </div>
             </nav>
 

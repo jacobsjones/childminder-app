@@ -23,9 +23,27 @@ export default function EditProfile() {
         }
     }, [id, router]);
 
-    const handleSave = (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
+
+        // Save to client-side localStorage
         saveChild(child);
+
+        // Also save to server-side storage
+        try {
+            const response = await fetch('/api/children', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(child),
+            });
+
+            if (!response.ok) {
+                console.error('Failed to save to server');
+            }
+        } catch (error) {
+            console.error('Error saving to server:', error);
+        }
+
         router.push('/children');
     };
 

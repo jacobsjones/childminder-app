@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Camera } from 'lucide-react';
-import { getExpenses, addExpense, getChildren, getAttendance } from '@/lib/store';
+import { getExpenses, addExpense, getChildren, getAttendance, getSettings, getInvoices } from '@/lib/store';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 
@@ -10,6 +10,8 @@ export default function FinancesPage() {
     const [activeTab, setActiveTab] = useState('invoices'); // 'invoices' or 'expenses'
     const [children, setChildren] = useState([]);
     const [expenses, setExpenses] = useState([]);
+    const [settings, setSettings] = useState(null);
+    const [invoices, setInvoices] = useState([]);
 
     // Invoice Preview Modal State
     const [previewModal, setPreviewModal] = useState({
@@ -23,9 +25,43 @@ export default function FinancesPage() {
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
 
     useEffect(() => {
+        loadData();
+    }, []);
+
+    const loadData = async () => {
         setChildren(getChildren());
         setExpenses(getExpenses());
-    }, []);
+
+        // Load settings from server
+        try {
+            const response = await fetch('/api/settings');
+            if (response.ok) {
+                const serverSettings = await response.json();
+                setSettings(serverSettings);
+            } else {
+                // Fall back to localStorage
+                setSettings(getSettings());
+            }
+        } catch (error) {
+            console.error('Failed to load settings:', error);
+            setSettings(getSettings());
+        }
+
+        // Load invoices from server
+        try {
+            const response = await fetch('/api/invoices');
+            if (response.ok) {
+                const serverInvoices = await response.json();
+                setInvoices(serverInvoices);
+            } else {
+                // Fall back to localStorage
+                setInvoices(getInvoices());
+            }
+        } catch (error) {
+            console.error('Failed to load invoices:', error);
+            setInvoices(getInvoices());
+        }
+    };
 
     const handleAddExpense = (e) => {
         e.preventDefault();
@@ -38,15 +74,24 @@ export default function FinancesPage() {
     const handleGenerateInvoice = (child) => {
         // Get all attendance sessions for this child
         const allAttendance = getAttendance();
-        const childSessions = allAttendance.filter(a => a.childId === child.id && a.endTime);
+        const childSessions = allAttendance.filter(a => {
+            // Include hours-based records or completed time-based records
+            return a.childId === child.id && (a.hours !== undefined || a.endTime);
+        });
 
-        // Calculate total hours
+        // Calculate total hours (support both hours-based and time-based)
         let totalHours = 0;
         childSessions.forEach(s => {
-            const start = new Date(s.startTime);
-            const end = new Date(s.endTime);
-            const hours = (end - start) / (1000 * 60 * 60);
-            totalHours += hours;
+            if (s.hours !== undefined) {
+                // New hours-based system
+                totalHours += s.hours;
+            } else if (s.startTime && s.endTime) {
+                // Old time-based system (backward compatibility)
+                const start = new Date(s.startTime);
+                const end = new Date(s.endTime);
+                const hours = (end - start) / (1000 * 60 * 60);
+                totalHours += hours;
+            }
         });
 
         totalHours = Math.round(totalHours * 100) / 100;
@@ -57,7 +102,8 @@ export default function FinancesPage() {
             parentEmail: child.email || '',
             totalHours: totalHours,
             hourlyRate: child.rate,
-            sessions: childSessions
+            sessions: childSessions,
+            settings: settings // Include business settings for payment info
         };
 
         // Generate PDF
@@ -180,6 +226,78 @@ export default function FinancesPage() {
                             );
                         })}
                         {children.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No children found.</p>}
+                    </div>
+
+                    {/* Invoice History */}
+                    <div style={{ marginTop: '3rem' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Invoice History</h2>
+
+                        {/* Summary Card */}
+                        {invoices.length > 0 && (
+                            <div className="card bg-green" style={{ marginBottom: '1.5rem' }}>
+                                <h3>Total Invoiced This Month</h3>
+                                <p style={{ fontSize: '2rem', fontWeight: 700, margin: '0.5rem 0' }}>
+                                    £{(() => {
+                                        const now = new Date();
+                                        const thisMonthInvoices = invoices.filter(inv => {
+                                            const invoiceDate = new Date(inv.dateSent);
+                                            return invoiceDate.getMonth() === now.getMonth() &&
+                                                   invoiceDate.getFullYear() === now.getFullYear();
+                                        });
+                                        const total = thisMonthInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+                                        return total.toFixed(2);
+                                    })()}
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Sent Invoices List */}
+                        <h3 style={{ marginBottom: '1rem' }}>Sent Invoices</h3>
+                        {invoices.length === 0 ? (
+                            <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+                                <p style={{ color: 'var(--text-secondary)' }}>No invoices sent yet.</p>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {invoices.map(invoice => (
+                                    <div key={invoice.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', marginBottom: 0 }}>
+                                        <div>
+                                            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{invoice.childName}</p>
+                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                                {new Date(invoice.dateSent).toLocaleDateString('en-GB', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit'
+                                                })} • {invoice.period}
+                                            </p>
+                                            {invoice.parentEmail && (
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                                                    📧 {invoice.parentEmail}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <p style={{ fontWeight: 600, fontSize: '1.1rem', marginBottom: '0.25rem' }}>
+                                                £{invoice.amount.toFixed(2)}
+                                            </p>
+                                            <span style={{
+                                                display: 'inline-block',
+                                                padding: '0.25rem 0.75rem',
+                                                borderRadius: '0.5rem',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 600,
+                                                background: '#dcfce7',
+                                                color: '#166534'
+                                            }}>
+                                                Sent
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </section>
             )}

@@ -1,37 +1,77 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Banknote, LayoutGrid, List, Settings, Calendar, XCircle } from 'lucide-react';
-import { getChildren, getAttendance, getActiveCheckIn, checkIn, checkOut, getTotalHoursForChild, processScheduledAttendance, deleteAttendance } from '@/lib/store';
+import { Users, Banknote, LayoutGrid, List, Settings, Calendar, XCircle, Clock } from 'lucide-react';
+import { getChildren, getAttendance, getTotalHoursForChild, processScheduledAttendance, deleteAttendance, getTodayHours, logHours } from '@/lib/store';
+import HoursLogModal from '@/components/HoursLogModal';
 
 export default function Dashboard() {
     const [children, setChildren] = useState([]);
     const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [modalState, setModalState] = useState({ isOpen: false, childId: null, childName: '', initialHours: 0 });
+
+    const loadData = useCallback(async () => {
+        // First, sync data from server
+        try {
+            const response = await fetch('/api/sync');
+            if (response.ok) {
+                const serverData = await response.json();
+
+                // Merge server data into localStorage
+                if (serverData.children && serverData.children.length > 0) {
+                    localStorage.setItem('childminder_children', JSON.stringify(serverData.children));
+                }
+                if (serverData.attendance && serverData.attendance.length > 0) {
+                    localStorage.setItem('childminder_attendance', JSON.stringify(serverData.attendance));
+                }
+            }
+        } catch (error) {
+            console.error('[Dashboard] Failed to sync from server:', error);
+        }
+
+        // Then load from localStorage
+        setChildren(getChildren());
+        setAttendance(getAttendance());
+        setLoading(false);
+    }, []);
 
     useEffect(() => {
         // Run auto-scheduler logic on load
         processScheduledAttendance();
-        loadData();
-    }, []);
+        const timer = setTimeout(() => loadData(), 0);
 
-    const loadData = () => {
-        setChildren(getChildren());
-        setAttendance(getAttendance());
-        setLoading(false);
+        // Listen for AI assistant updates
+        const handleReload = () => {
+            console.log('[Dashboard] Reloading data after AI action...');
+            loadData();
+        };
+
+        window.addEventListener('reloadDashboardData', handleReload);
+
+        return () => {
+            window.removeEventListener('reloadDashboardData', handleReload);
+            clearTimeout(timer);
+        };
+    }, [loadData]);
+
+    const handleLogHours = (childId, childName) => {
+        const todayHours = getTodayHours(childId) || 0;
+        setModalState({
+            isOpen: true,
+            childId,
+            childName,
+            initialHours: todayHours
+        });
     };
 
-    const handleToggleStatus = (id, isActive) => {
-        if (isActive) {
-            checkOut(id);
-        } else {
-            checkIn(id);
-        }
+    const handleSaveHours = (hours) => {
+        logHours(modalState.childId, hours);
         loadData();
     };
 
     const handleDeleteRecord = (recordId) => {
-        if (confirm('Mark as absent? This will remove the scheduled hours.')) {
+        if (confirm('Mark as absent? This will remove today\'s hours.')) {
             deleteAttendance(recordId);
             loadData();
         }
@@ -39,47 +79,58 @@ export default function Dashboard() {
 
     if (loading) return <div>Loading...</div>;
 
-    // A child is "active" if checked in manually OR has a scheduled record for today
+    // Get child status based on hours logged today
     const getChildStatus = (childId) => {
         const todayStr = new Date().toISOString().slice(0, 10);
         // Find record for today
-        const record = attendance.find(a => a.childId === childId && a.startTime.startsWith(todayStr));
+        const record = attendance.find(a => a.childId === childId && a.date === todayStr);
 
         if (record) {
-            if (record.isAuto) return { type: 'scheduled', record };
-            if (!record.endTime) return { type: 'checked-in', record }; // Manual Check-in
-            return { type: 'checked-out', record }; // Manually finished
+            return {
+                hasHours: true,
+                hours: record.hours,
+                isAuto: record.isAuto,
+                record
+            };
         }
-        return { type: 'none', record: null };
+        return { hasHours: false, hours: 0, isAuto: false, record: null };
     };
 
     const activeCount = children.filter(c => {
         const s = getChildStatus(c.id);
-        return s.type === 'checked-in' || s.type === 'scheduled';
+        return s.hasHours;
     }).length;
 
     return (
         <main>
             <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
-                    <h1>Good Morning! ☀️</h1>
+                    <h1>Hey Sue! ☀️</h1>
                     <p style={{ color: 'var(--text-secondary)' }}>
-                        You have {activeCount} children expected.
+                        You have {activeCount} children logged today.
                     </p>
                 </div>
             </header>
 
             <DashboardList
                 childrenData={children}
-                onToggleStatus={handleToggleStatus}
                 getChildStatus={getChildStatus}
+                onLogHours={handleLogHours}
                 onDeleteRecord={handleDeleteRecord}
+            />
+
+            <HoursLogModal
+                isOpen={modalState.isOpen}
+                onClose={() => setModalState({ ...modalState, isOpen: false })}
+                childName={modalState.childName}
+                initialHours={modalState.initialHours}
+                onSave={handleSaveHours}
             />
         </main>
     );
 }
 
-function DashboardList({ childrenData, onToggleStatus, getChildStatus, onDeleteRecord }) {
+function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecord }) {
     const [viewMode, setViewMode] = useState('list');
     const router = useRouter();
 
@@ -95,13 +146,14 @@ function DashboardList({ childrenData, onToggleStatus, getChildStatus, onDeleteR
         return {
             ...c,
             totalHours: getTotalHoursForChild(c.id),
-            status: status.type, // 'scheduled', 'checked-in', 'checked-out', 'none'
-            record: status.record,
+            todayStatus: status,
             icon: getIcon(c.name)
         };
     }).sort((a, b) => {
-        const priority = { 'scheduled': 3, 'checked-in': 2, 'checked-out': 1, 'none': 0 };
-        return priority[b.status] - priority[a.status];
+        // Sort: logged today first, then by name
+        if (a.todayStatus.hasHours && !b.todayStatus.hasHours) return -1;
+        if (!a.todayStatus.hasHours && b.todayStatus.hasHours) return 1;
+        return a.name.localeCompare(b.name);
     });
 
     const handleCardClick = (e, childId) => {
@@ -181,9 +233,9 @@ function DashboardList({ childrenData, onToggleStatus, getChildStatus, onDeleteR
                             <div style={{ flex: 1 }}>
                                 <h3 style={{ marginBottom: '0.25rem', fontSize: '1.1rem' }}>{child.name}</h3>
                                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                    {child.status === 'scheduled' ? (
-                                        <span style={{ color: 'var(--primary-blue-text)', fontWeight: 600 }}>
-                                            Scheduled: {child.record.startTime.slice(11, 16)} - {child.record.endTime.slice(11, 16)}
+                                    {child.todayStatus.hasHours ? (
+                                        <span style={{ color: 'var(--primary-green)', fontWeight: 600 }}>
+                                            Today: {child.todayStatus.hours} hours
                                         </span>
                                     ) : (
                                         <span>{child.totalHours.toFixed(1)} hrs this month</span>
@@ -192,61 +244,76 @@ function DashboardList({ childrenData, onToggleStatus, getChildStatus, onDeleteR
                             </div>
 
                             {/* Action Button */}
-                            {child.schedule?.enabled ? (
-                                <div style={{ display: 'flex', gap: '0.5rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto' }}>
-                                    {child.status === 'scheduled' && child.record ? (
+                            <div style={{ display: 'flex', gap: '0.5rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto' }}>
+                                {child.todayStatus.hasHours ? (
+                                    <>
                                         <button
-                                            onClick={() => onDeleteRecord(child.record.id)}
+                                            onClick={() => onLogHours(child.id, child.name)}
                                             style={{
-                                                padding: '0.75rem 1rem',
-                                                background: 'transparent',
-                                                borderRadius: '0.5rem',
-                                                color: '#dc2626',
-                                                border: '2px solid #dc2626',
+                                                padding: '0.75rem 1.5rem',
+                                                borderRadius: '9999px',
                                                 fontWeight: 600,
                                                 fontSize: '0.9rem',
+                                                background: 'transparent',
+                                                color: 'var(--primary-blue-text)',
+                                                border: `2px solid var(--primary-blue)`,
+                                                whiteSpace: 'nowrap',
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                justifyContent: 'center',
                                                 gap: '0.5rem',
-                                                whiteSpace: 'nowrap'
+                                                justifyContent: 'center'
                                             }}
                                         >
-                                            <XCircle size={18} />
-                                            Mark as Absent
+                                            <Clock size={18} />
+                                            Edit Hours
                                         </button>
-                                    ) : (
-                                        <div style={{
-                                            padding: '0.75rem 1rem',
-                                            background: 'var(--bg-color)',
-                                            borderRadius: '0.5rem',
-                                            color: 'var(--text-secondary)',
-                                            border: '1px solid var(--border-color)',
-                                            fontSize: '0.85rem',
-                                            textAlign: 'center'
-                                        }}>
-                                            Not scheduled today
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => onToggleStatus(child.id, child.status === 'checked-in')}
-                                    style={{
-                                        width: viewMode === 'grid' ? '100%' : 'auto',
-                                        padding: '0.75rem 1.5rem',
-                                        borderRadius: '9999px',
-                                        fontWeight: 600,
-                                        fontSize: '0.9rem',
-                                        background: child.status === 'checked-in' ? 'transparent' : 'var(--primary-blue)',
-                                        color: child.status === 'checked-in' ? 'var(--primary-blue-text)' : 'var(--primary-blue-text)',
-                                        border: `2px solid var(--primary-blue)`,
-                                        marginTop: viewMode === 'grid' ? '0.5rem' : '0'
-                                    }}
-                                >
-                                    {child.status === 'checked-in' ? 'Check Out' : 'Check In'}
-                                </button>
-                            )}
+                                        {child.todayStatus.isAuto && (
+                                            <button
+                                                onClick={() => onDeleteRecord(child.todayStatus.record.id)}
+                                                style={{
+                                                    padding: '0.75rem 1rem',
+                                                    background: 'transparent',
+                                                    borderRadius: '0.5rem',
+                                                    color: '#dc2626',
+                                                    border: '2px solid #dc2626',
+                                                    fontWeight: 600,
+                                                    fontSize: '0.9rem',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '0.5rem',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                            >
+                                                <XCircle size={18} />
+                                                Absent
+                                            </button>
+                                        )}
+                                    </>
+                                ) : (
+                                    <button
+                                        onClick={() => onLogHours(child.id, child.name)}
+                                        style={{
+                                            width: viewMode === 'grid' ? '100%' : 'auto',
+                                            padding: '0.75rem 1.5rem',
+                                            borderRadius: '9999px',
+                                            fontWeight: 600,
+                                            fontSize: '0.9rem',
+                                            background: 'var(--primary-blue)',
+                                            color: 'white',
+                                            border: `2px solid var(--primary-blue)`,
+                                            marginTop: viewMode === 'grid' ? '0.5rem' : '0',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem',
+                                            justifyContent: 'center'
+                                        }}
+                                    >
+                                        <Clock size={18} />
+                                        Log Hours
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>

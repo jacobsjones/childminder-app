@@ -1,0 +1,23 @@
+[
+  {
+    "id": "8dov3qm10",
+    "childId": "mc32xd3y6",
+    "date": "2026-01-09",
+    "hours": 3,
+    "isAuto": false
+  },
+  {
+    "id": "ie3yqjvi1",
+    "childId": "mc32xd3y6",
+    "date": "2026-01-08",
+    "hours": 5.5,
+    "isAuto": false
+  },
+  {
+    "id": "rbri3e78o",
+    "childId": "mc32xd3y6",
+    "date": "2026-01-07",
+    "hours": 7,
+    "isAuto": false
+  }
+]

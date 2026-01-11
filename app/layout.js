@@ -7,8 +7,8 @@ import VoiceAssistant from '@/components/VoiceAssistant';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-    title: 'Childminding Invoice Manager',
-    description: 'Track hours, manage invoices, and expenses.',
+    title: 'LittleHours',
+    description: 'Simple time tracking & invoicing for childminders.',
     manifest: '/manifest.json',
 };
 
