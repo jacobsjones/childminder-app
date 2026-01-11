@@ -273,43 +273,46 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                         <button
                                             onClick={() => onLogHours(child.id, child.name)}
                                             style={{
-                                                padding: '0.6rem',
-                                                borderRadius: '50%',
+                                                padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem',
+                                                borderRadius: viewMode === 'grid' ? '9999px' : '50%',
                                                 fontWeight: 600,
-                                                fontSize: '0.85rem',
+                                                fontSize: '0.75rem',
                                                 background: 'transparent',
                                                 color: 'var(--primary-blue-text)',
                                                 border: `2px solid var(--primary-blue)`,
                                                 whiteSpace: 'nowrap',
                                                 display: 'flex',
                                                 alignItems: 'center',
+                                                gap: '0.3rem',
                                                 justifyContent: 'center',
-                                                aspectRatio: '1/1'
+                                                aspectRatio: viewMode === 'grid' ? 'auto' : '1/1'
                                             }}
                                             title="Edit Hours"
                                         >
-                                            <Clock size={20} />
+                                            <Clock size={viewMode === 'grid' ? 14 : 20} />
+                                            {viewMode === 'grid' && 'Edit'}
                                         </button>
                                         {child.todayStatus.isAuto && (
                                             <button
                                                 onClick={() => onDeleteRecord(child.todayStatus.record.id)}
                                                 style={{
-                                                    padding: '0.6rem',
+                                                    padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem',
                                                     background: 'transparent',
-                                                    borderRadius: '0.5rem',
+                                                    borderRadius: viewMode === 'grid' ? '0.5rem' : '50%',
                                                     color: '#dc2626',
                                                     border: '2px solid #dc2626',
                                                     fontWeight: 600,
-                                                    fontSize: '0.85rem',
+                                                    fontSize: '0.75rem',
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
                                                     whiteSpace: 'nowrap',
-                                                    aspectRatio: '1/1'
+                                                    aspectRatio: viewMode === 'grid' ? 'auto' : '1/1'
                                                 }}
                                                 title="Mark Absent"
                                             >
-                                                <XCircle size={20} />
+                                                <XCircle size={viewMode === 'grid' ? 14 : 20} />
+                                                {viewMode === 'grid' && 'Abs'}
                                             </button>
                                         )}
                                     </>
@@ -317,21 +320,24 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
                                     <button
                                         onClick={() => onLogHours(child.id, child.name)}
                                         style={{
-                                            padding: '0.6rem',
-                                            borderRadius: '50%',
+                                            padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem',
+                                            borderRadius: viewMode === 'grid' ? '9999px' : '50%',
                                             fontWeight: 600,
-                                            fontSize: '0.85rem',
+                                            fontSize: '0.75rem',
                                             background: 'var(--primary-blue)',
                                             color: 'white',
                                             border: `2px solid var(--primary-blue)`,
                                             display: 'flex',
                                             alignItems: 'center',
+                                            gap: '0.3rem',
                                             justifyContent: 'center',
-                                            aspectRatio: '1/1'
+                                            aspectRatio: viewMode === 'grid' ? 'auto' : '1/1',
+                                            width: viewMode === 'grid' ? '100%' : 'auto'
                                         }}
                                         title="Log Hours"
                                     >
-                                        <Clock size={20} />
+                                        <Clock size={viewMode === 'grid' ? 14 : 20} />
+                                        {viewMode === 'grid' && 'Log Hours'}
                                     </button>
                                 )}
                             </div>
