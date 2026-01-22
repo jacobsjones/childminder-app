@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Moon, Sun, Monitor, Building2, Save } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
-import { getSettings, saveSettings } from '@/lib/store';
 
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
@@ -20,19 +19,14 @@ export default function SettingsPage() {
     const [saving, setSaving] = useState(false);
 
     const loadSettings = useCallback(async () => {
-        // Sync from server
         try {
             const response = await fetch('/api/settings');
             if (response.ok) {
                 const serverSettings = await response.json();
                 setBusinessSettings(serverSettings);
-                // Also update Store (KV)
-                await saveSettings(serverSettings);
             }
         } catch (error) {
             console.error('Failed to load settings from server:', error);
-            // Fall back to Store (KV)
-            setBusinessSettings(await getSettings());
         }
         setLoading(false);
     }, []);
@@ -52,10 +46,6 @@ export default function SettingsPage() {
         e.preventDefault();
         setSaving(true);
 
-        // Save to Store (KV)
-        await saveSettings(businessSettings);
-
-        // Also save to server-side storage (Legacy sync)
         try {
             const response = await fetch('/api/settings', {
                 method: 'POST',
@@ -65,13 +55,13 @@ export default function SettingsPage() {
 
             if (!response.ok) {
                 console.error('Failed to save to server');
-                alert('Settings saved locally but failed to sync to server. Please try again.');
+                alert('Failed to save settings. Please try again.');
             } else {
                 alert('Settings saved successfully!');
             }
         } catch (error) {
             console.error('Error saving to server:', error);
-            alert('Settings saved locally but failed to sync to server. Please try again.');
+            alert('Failed to save settings. Please try again.');
         }
 
         setSaving(false);

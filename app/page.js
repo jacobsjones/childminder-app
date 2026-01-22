@@ -1,68 +1,45 @@
 'use client';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, Banknote, LayoutGrid, List, Settings, Calendar, XCircle, Clock } from 'lucide-react';
-import { getChildren, getAttendance, getTotalHoursForChild, processScheduledAttendance, deleteAttendance, getTodayHours, logHours } from '@/lib/store';
+import { LayoutGrid, List, Calendar, XCircle, Clock } from 'lucide-react';
 import HoursLogModal from '@/components/HoursLogModal';
 
 export default function Dashboard() {
     const [children, setChildren] = useState([]);
-    const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalState, setModalState] = useState({ isOpen: false, childId: null, childName: '', initialHours: 0 });
 
     const loadData = useCallback(async () => {
-        // First, sync data from server
         try {
-            const response = await fetch('/api/sync');
-            if (response.ok) {
-                const serverData = await response.json();
-
-                // Merge server data into localStorage (Legacy, keeping for now)
-                if (serverData.children && serverData.children.length > 0) {
-                    localStorage.setItem('childminder_children', JSON.stringify(serverData.children));
-                }
-                if (serverData.attendance && serverData.attendance.length > 0) {
-                    localStorage.setItem('childminder_attendance', JSON.stringify(serverData.attendance));
-                }
+            const response = await fetch('/api/dashboard');
+            if (!response.ok) {
+                throw new Error('Failed to fetch data');
             }
+
+            const data = await response.json();
+
+            // Enrich with icons
+            const enrichedChildren = (data.children || []).map((c) => {
+                const sum = c.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                const icons = ['🐻', '☀️', '⭐'];
+                const icon = icons[sum % icons.length];
+
+                return {
+                    ...c,
+                    icon
+                };
+            });
+
+            setChildren(enrichedChildren);
+            setLoading(false);
         } catch (error) {
-            console.error('[Dashboard] Failed to sync from server:', error);
+            console.error('[Dashboard] Failed to load data:', error);
+            setLoading(false);
         }
-
-        // Then load from Store (KV)
-        const rawChildren = await getChildren();
-        const rawAttendance = await getAttendance();
-        
-        // Enriched data
-        const enrichedChildren = await Promise.all(rawChildren.map(async (c) => {
-            const sum = c.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            const icons = ['🐻', '☀️', '⭐'];
-            const icon = icons[sum % icons.length];
-            const totalHours = await getTotalHoursForChild(c.id);
-            
-            return {
-                ...c,
-                icon,
-                totalHours
-            };
-        }));
-
-        setChildren(enrichedChildren);
-        setAttendance(rawAttendance);
-        setLoading(false);
     }, []);
 
     useEffect(() => {
-        const init = async () => {
-            // Run auto-scheduler logic on load
-            await processScheduledAttendance();
-            await loadData();
-        };
-
-        const timer = setTimeout(() => init(), 0);
+        loadData();
 
         // Listen for AI assistant updates
         const handleReload = () => {
@@ -74,12 +51,14 @@ export default function Dashboard() {
 
         return () => {
             window.removeEventListener('reloadDashboardData', handleReload);
-            clearTimeout(timer);
         };
     }, [loadData]);
 
     const handleLogHours = async (childId, childName) => {
-        const todayHours = await getTodayHours(childId) || 0;
+        // Get today's hours from child data already loaded
+        const child = children.find(c => c.id === childId);
+        const todayHours = child?.todayRecord?.hours || 0;
+
         setModalState({
             isOpen: true,
             childId,
@@ -89,24 +68,49 @@ export default function Dashboard() {
     };
 
     const handleSaveHours = async (hours) => {
-        await logHours(modalState.childId, hours);
-        await loadData();
+        try {
+            const response = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'logHours',
+                    childId: modalState.childId,
+                    hours: hours
+                })
+            });
+
+            if (response.ok) {
+                await loadData();
+            }
+        } catch (error) {
+            console.error('Failed to log hours:', error);
+        }
     };
 
     const handleDeleteRecord = async (recordId) => {
         if (confirm('Mark as absent? This will remove today\'s hours.')) {
-            await deleteAttendance(recordId);
-            await loadData();
+            try {
+                const response = await fetch('/api/attendance', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: recordId })
+                });
+
+                if (response.ok) {
+                    await loadData();
+                }
+            } catch (error) {
+                console.error('Failed to delete attendance:', error);
+            }
         }
     };
 
     if (loading) return <div>Loading...</div>;
 
-    // Get child status based on hours logged today
+    // Get child status based on loaded dashboard data
     const getChildStatus = (childId) => {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        // Find record for today
-        const record = attendance.find(a => a.childId === childId && a.date === todayStr);
+        const child = children.find(c => c.id === childId);
+        const record = child?.todayRecord;
 
         if (record) {
             return {
@@ -156,6 +160,7 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
         // Load view preference
         const savedView = localStorage.getItem('dashboard_view_mode');
         if (savedView) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setViewMode(savedView);
         }
     }, []);

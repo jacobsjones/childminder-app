@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Loader2, Send, X, MessageSquare } from 'lucide-react';
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 
 export default function VoiceAssistant() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);

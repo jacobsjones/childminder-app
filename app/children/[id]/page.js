@@ -1,11 +1,9 @@
 'use client';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { useState, useEffect, use, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Edit2, Save, Trash, X, Plus } from 'lucide-react';
-import { getChild, getAttendance, updateAttendance, deleteAttendance, logHours, getTotalHoursForChild } from '@/lib/store';
+// All database operations moved to API routes
 import ManualEntryModal from '@/components/ManualEntryModal';
 
 export default function ChildProfile({ params }) {
@@ -21,22 +19,26 @@ export default function ChildProfile({ params }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const loadData = useCallback(async () => {
-        const childData = await getChild(id);
-        setChild(childData);
-        
-        const allAttendance = await getAttendance();
-        // Support both hours-based and time-based records
-        const childHistory = allAttendance
-            .filter(a => a.childId === id && (a.hours !== undefined || a.endTime))
-            .sort((a, b) => {
-                const dateA = a.date ? new Date(a.date) : new Date(a.startTime);
-                const dateB = b.date ? new Date(b.date) : new Date(b.startTime);
-                return dateB - dateA;
-            });
-        setHistory(childHistory);
+        try {
+            const response = await fetch(`/api/children/${id}`);
+            if (!response.ok) throw new Error('Failed to load data');
 
-        const total = await getTotalHoursForChild(id);
-        setTotalHoursAllTime(total.toFixed(1));
+            const data = await response.json();
+            setChild(data.child);
+
+            // Support both hours-based and time-based records
+            const childHistory = data.attendance
+                .filter(a => a.hours !== undefined || a.endTime)
+                .sort((a, b) => {
+                    const dateA = a.date ? new Date(a.date) : new Date(a.startTime);
+                    const dateB = b.date ? new Date(b.date) : new Date(b.startTime);
+                    return dateB - dateA;
+                });
+            setHistory(childHistory);
+            setTotalHoursAllTime((data.totalHours || 0).toFixed(1));
+        } catch (error) {
+            console.error('Failed to load child data:', error);
+        }
     }, [id]);
 
     useEffect(() => {
@@ -100,70 +102,79 @@ export default function ChildProfile({ params }) {
     };
 
     const saveEdit = async (originalItem) => {
-        if (originalItem.hours !== undefined) {
-            // Update hours-based record
-            const hours = parseFloat(editForm.hours);
-            await logHours(id, hours, editForm.date);
-
-            // Also save to server (Legacy sync, KV already handles it via logHours if we changed imports, but keeping for now)
-            try {
+        try {
+            if (originalItem.hours !== undefined) {
+                // Update hours-based record
+                const hours = parseFloat(editForm.hours);
                 await fetch('/api/attendance', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        childId: id,
+                        action: 'logHours',
+                        childId: parseInt(id),
                         date: editForm.date,
                         hours,
                     }),
                 });
-            } catch (error) {
-                console.error('Error saving to server:', error);
+            } else {
+                // Update time-based record (legacy)
+                const updated = {
+                    ...originalItem,
+                    childId: parseInt(id),
+                    startTime: new Date(editForm.start).toISOString(),
+                    endTime: new Date(editForm.end).toISOString()
+                };
+                await fetch(`/api/children/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'updateAttendance', ...updated }),
+                });
             }
-        } else {
-            // Update time-based record (legacy)
-            const updated = {
-                ...originalItem,
-                startTime: new Date(editForm.start).toISOString(),
-                endTime: new Date(editForm.end).toISOString()
-            };
-            await updateAttendance(updated);
+            setEditingId(null);
+            await loadData();
+        } catch (error) {
+            console.error('Error saving edit:', error);
         }
-        setEditingId(null);
-        await loadData();
-        router.refresh();
     };
 
     const handleManualSave = async ({ date, hours }) => {
-        // Save to Store (KV)
-        await logHours(id, hours, date);
-
-        // Also save to server-side storage (Legacy sync)
         try {
             const response = await fetch('/api/attendance', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    childId: id,
+                    action: 'logHours',
+                    childId: parseInt(id),
                     date,
                     hours,
                 }),
             });
 
-            if (!response.ok) {
+            if (response.ok) {
+                await loadData();
+            } else {
                 console.error('Failed to save to server');
             }
         } catch (error) {
             console.error('Error saving to server:', error);
         }
-
-        await loadData();
-        router.refresh();
     };
 
     const handleDelete = async (itemId) => {
         if (confirm('Are you sure you want to delete this record?')) {
-            await deleteAttendance(itemId);
-            await loadData();
+            try {
+                const response = await fetch('/api/attendance', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: itemId }),
+                });
+
+                if (response.ok) {
+                    await loadData();
+                }
+            } catch (error) {
+                console.error('Error deleting attendance:', error);
+            }
         }
     };
 

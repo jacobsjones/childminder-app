@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Trash2, Calendar, Clock, Lock } from 'lucide-react';
-import { getChild, saveChild, deleteAttendance } from '@/lib/store';
 
 export default function EditProfile() {
     const { id } = useParams();
@@ -14,26 +13,27 @@ export default function EditProfile() {
     useEffect(() => {
         if (id) {
             const load = async () => {
-                const data = await getChild(id);
-                if (data) {
-                    setChild(data);
-                } else {
-                    router.push('/children'); // Not found
+                try {
+                    const response = await fetch(`/api/children/${id}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        setChild(data.child);
+                    } else {
+                        router.push('/children'); // Not found
+                    }
+                } catch (error) {
+                    console.error('Failed to load child:', error);
+                    router.push('/children');
                 }
                 setLoading(false);
             };
-            const timer = setTimeout(() => load(), 0);
-            return () => clearTimeout(timer);
+            load();
         }
     }, [id, router]);
 
     const handleSave = async (e) => {
         e.preventDefault();
 
-        // Save to Store (KV)
-        await saveChild(child);
-
-        // Also save to server-side storage (Legacy sync)
         try {
             const response = await fetch('/api/children', {
                 method: 'POST',
@@ -41,14 +41,16 @@ export default function EditProfile() {
                 body: JSON.stringify(child),
             });
 
-            if (!response.ok) {
+            if (response.ok) {
+                router.push('/children');
+            } else {
                 console.error('Failed to save to server');
+                alert('Failed to save changes');
             }
         } catch (error) {
             console.error('Error saving to server:', error);
+            alert('Failed to save changes');
         }
-
-        router.push('/children');
     };
 
     const toggleSchedule = (checked) => {

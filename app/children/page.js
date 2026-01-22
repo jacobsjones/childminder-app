@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { getChildren, saveChild } from '@/lib/store';
 
 export default function ChildrenPage() {
     const [children, setChildren] = useState([]);
@@ -12,11 +11,17 @@ export default function ChildrenPage() {
 
     useEffect(() => {
         const load = async () => {
-            const data = await getChildren();
-            setChildren(data);
+            try {
+                const response = await fetch('/api/children');
+                if (response.ok) {
+                    const data = await response.json();
+                    setChildren(data);
+                }
+            } catch (error) {
+                console.error('Failed to load children:', error);
+            }
         };
-        const timer = setTimeout(() => load(), 0);
-        return () => clearTimeout(timer);
+        load();
     }, []);
 
     const handleCreate = async (e) => {
@@ -25,14 +30,25 @@ export default function ChildrenPage() {
         const name = formData.get('name');
 
         if (name) {
-            const newChild = { name, rate: 0 }; // Default, can edit details later
-            await saveChild(newChild);
-            const data = await getChildren();
-            setChildren(data);
-            setIsAdding(false);
-            // Optionally redirect to edit page immediately
-            const created = data.find(c => c.name === name);
-            if (created) router.push(`/children/edit/${created.id}`);
+            try {
+                const newChild = { name, rate: 0 }; // Default, can edit details later
+                const response = await fetch('/api/children', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newChild)
+                });
+
+                if (response.ok) {
+                    const created = await response.json();
+                    setIsAdding(false);
+                    // Redirect to edit page immediately
+                    if (created.id) {
+                        router.push(`/children/edit/${created.id}`);
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to create child:', error);
+            }
         }
     };
 

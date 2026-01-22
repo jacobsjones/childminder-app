@@ -1,10 +1,7 @@
 'use client';
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Camera } from 'lucide-react';
-import { getExpenses, addExpense, getChildren, getAttendance, getSettings, getInvoices } from '@/lib/store';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 
@@ -27,37 +24,29 @@ export default function FinancesPage() {
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
 
     const loadData = useCallback(async () => {
-        setChildren(await getChildren());
-        setExpenses(await getExpenses());
-
-        // Load settings from server
         try {
-            const response = await fetch('/api/settings');
-            if (response.ok) {
-                const serverSettings = await response.json();
-                setSettings(serverSettings);
-            } else {
-                // Fall back to Store (KV)
-                setSettings(await getSettings());
+            // Load children
+            const childrenResponse = await fetch('/api/children');
+            if (childrenResponse.ok) {
+                setChildren(await childrenResponse.json());
+            }
+
+            // Load expenses (not yet implemented)
+            setExpenses([]);
+
+            // Load settings
+            const settingsResponse = await fetch('/api/settings');
+            if (settingsResponse.ok) {
+                setSettings(await settingsResponse.json());
+            }
+
+            // Load invoices
+            const invoicesResponse = await fetch('/api/invoices');
+            if (invoicesResponse.ok) {
+                setInvoices(await invoicesResponse.json());
             }
         } catch (error) {
-            console.error('Failed to load settings:', error);
-            setSettings(await getSettings());
-        }
-
-        // Load invoices from server
-        try {
-            const response = await fetch('/api/invoices');
-            if (response.ok) {
-                const serverInvoices = await response.json();
-                setInvoices(serverInvoices);
-            } else {
-                // Fall back to Store (KV)
-                setInvoices(await getInvoices());
-            }
-        } catch (error) {
-            console.error('Failed to load invoices:', error);
-            setInvoices(await getInvoices());
+            console.error('Failed to load data:', error);
         }
     }, []);
 
@@ -70,27 +59,34 @@ export default function FinancesPage() {
 
     useEffect(() => {
         const updateSummaries = async () => {
-            const allAttendance = await getAttendance();
-            const newSummaries = {};
-            
-            for (const child of children) {
-                const childSessions = allAttendance.filter(a => a.childId === child.id && (a.hours !== undefined || a.endTime));
-                let totalHours = 0;
-                childSessions.forEach(s => {
-                    if (s.hours !== undefined) {
-                        totalHours += s.hours;
-                    } else if (s.startTime && s.endTime) {
-                        const start = new Date(s.startTime);
-                        const end = new Date(s.endTime);
-                        totalHours += (end - start) / (1000 * 60 * 60);
-                    }
-                });
-                newSummaries[child.id] = {
-                    hours: totalHours,
-                    cost: (totalHours * child.rate).toFixed(2)
-                };
+            try {
+                const response = await fetch('/api/sync');
+                if (!response.ok) return;
+
+                const { attendance: allAttendance } = await response.json();
+                const newSummaries = {};
+
+                for (const child of children) {
+                    const childSessions = allAttendance.filter(a => a.childId === child.id && (a.hours !== undefined || a.endTime));
+                    let totalHours = 0;
+                    childSessions.forEach(s => {
+                        if (s.hours !== undefined) {
+                            totalHours += s.hours;
+                        } else if (s.startTime && s.endTime) {
+                            const start = new Date(s.startTime);
+                            const end = new Date(s.endTime);
+                            totalHours += (end - start) / (1000 * 60 * 60);
+                        }
+                    });
+                    newSummaries[child.id] = {
+                        hours: totalHours,
+                        cost: (totalHours * child.rate).toFixed(2)
+                    };
+                }
+                setSummaries(newSummaries);
+            } catch (error) {
+                console.error('Failed to update summaries:', error);
             }
-            setSummaries(newSummaries);
         };
 
         if (children.length > 0) {
@@ -101,14 +97,18 @@ export default function FinancesPage() {
     const handleAddExpense = async (e) => {
         e.preventDefault();
         if (!expenseForm.desc || !expenseForm.amount) return;
-        await addExpense({ description: expenseForm.desc, amount: parseFloat(expenseForm.amount), type: 'expense' });
-        setExpenses(await getExpenses());
+        // Expenses not yet implemented for Postgres
+        console.log('Expense add not yet implemented');
         setExpenseForm({ desc: '', amount: '' });
     };
 
     const handleGenerateInvoice = async (child) => {
-        // Get all attendance sessions for this child
-        const allAttendance = await getAttendance();
+        try {
+            // Get all attendance sessions for this child
+            const response = await fetch('/api/sync');
+            if (!response.ok) throw new Error('Failed to fetch attendance');
+
+            const { attendance: allAttendance } = await response.json();
         const childSessions = allAttendance.filter(a => {
             // Include hours-based records or completed time-based records
             return a.childId === child.id && (a.hours !== undefined || a.endTime);
@@ -151,6 +151,10 @@ export default function FinancesPage() {
             fileName,
             invoiceData
         });
+        } catch (error) {
+            console.error('Failed to generate invoice:', error);
+            alert('Failed to generate invoice');
+        }
     };
 
     const handleSendEmail = async () => {
