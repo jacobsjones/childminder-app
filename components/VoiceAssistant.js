@@ -47,7 +47,12 @@ export default function VoiceAssistant() {
                 setMessages([...updatedMessages, { role: 'assistant', content: data }]);
             }
 
-            router.refresh();
+            // Wait for DB write to complete before refreshing
+            console.log("AI finished. Waiting for DB...");
+            setTimeout(() => {
+                console.log("Refreshing page data now.");
+                router.refresh();
+            }, 1000);
         } catch (error) {
             console.error('Chat error:', error);
             alert(`AI Assistant Error: ${error.message || 'Something went wrong.'}`);
