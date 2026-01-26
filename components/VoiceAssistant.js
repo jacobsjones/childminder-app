@@ -2,29 +2,69 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, Loader2, Send, X, MessageSquare } from 'lucide-react';
-import { useChat } from '@ai-sdk/react';
 
 export default function VoiceAssistant() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [inputValue, setInputValue] = useState('');
+    const [messages, setMessages] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
 
     const router = useRouter();
     const recognitionRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    // Use the useChat hook for message management
-    const { messages, setMessages, input, setInput, handleInputChange, handleSubmit, append, isLoading } = useChat({
-        api: '/api/chat',
-        onFinish: (message) => {
-            // Trigger custom event to reload dashboard data from server
-            window.dispatchEvent(new CustomEvent('reloadDashboardData'));
-        },
-        onError: (error) => {
+    // Send message to API directly
+    const sendMessage = async (content) => {
+        if (!content.trim() || isLoading) return;
+
+        // Add user message to state
+        const userMessage = { role: 'user', content: content.trim() };
+        const updatedMessages = [...messages, userMessage];
+        setMessages(updatedMessages);
+        setIsLoading(true);
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: updatedMessages }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.details || errorData.error || 'Failed to send message');
+            }
+
+            const data = await response.json();
+
+            // Handle the response - could be streaming or regular
+            if (data.content) {
+                setMessages([...updatedMessages, { role: 'assistant', content: data.content }]);
+            } else if (data.text) {
+                setMessages([...updatedMessages, { role: 'assistant', content: data.text }]);
+            } else if (typeof data === 'string') {
+                setMessages([...updatedMessages, { role: 'assistant', content: data }]);
+            }
+
+            router.refresh();
+        } catch (error) {
             console.error('Chat error:', error);
-            // Show alert to user so they know something went wrong
-            alert(`AI Assistant Error: ${error.message || 'Something went wrong. Please check your connection or API key.'}`);
-        },
-    });
+            alert(`AI Assistant Error: ${error.message || 'Something went wrong.'}`);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Custom form submit handler
+    const handleFormSubmit = async (e) => {
+        e.preventDefault();
+        if (!inputValue.trim() || isLoading) return;
+
+        const messageContent = inputValue.trim();
+        setInputValue('');
+        await sendMessage(messageContent);
+    };
 
     // Load chat history from localStorage on mount
     useEffect(() => {
@@ -38,11 +78,11 @@ export default function VoiceAssistant() {
                 }
             }
         }
-    }, [setMessages]);
+    }, []);
 
     // Save chat history to localStorage whenever it changes
     useEffect(() => {
-        if (messages.length > 0 && typeof window !== 'undefined') {
+        if (messages && messages.length > 0 && typeof window !== 'undefined') {
             localStorage.setItem('chat_history', JSON.stringify(messages));
         }
     }, [messages]);
@@ -70,12 +110,9 @@ export default function VoiceAssistant() {
                     console.log('[Voice] Transcript received:', transcript);
                     setIsListening(false);
 
-                    // Submit the voice command directly using append
+                    // Submit the voice command directly
                     if (transcript.trim()) {
-                        append({
-                            role: 'user',
-                            content: transcript,
-                        });
+                        sendMessage(transcript);
                     }
                 };
 
@@ -98,7 +135,7 @@ export default function VoiceAssistant() {
                 recognitionRef.current.abort();
             }
         };
-    }, []); // Remove append from dependencies
+    }, []);
 
     const toggleListening = () => {
         if (!recognitionRef.current) {
@@ -263,7 +300,7 @@ export default function VoiceAssistant() {
 
                     {/* Input Area */}
                     <form
-                        onSubmit={handleSubmit}
+                        onSubmit={handleFormSubmit}
                         style={{
                             padding: '1rem',
                             borderTop: '1px solid var(--border-color)',
@@ -308,8 +345,8 @@ export default function VoiceAssistant() {
                             </button>
                             <input
                                 type="text"
-                                value={input}
-                                onChange={handleInputChange}
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
                                 placeholder="Type a message..."
                                 style={{
                                     flex: 1,
@@ -324,11 +361,11 @@ export default function VoiceAssistant() {
                         </div>
                         <button
                             type="submit"
-                            disabled={!input.trim() || isLoading}
+                            disabled={isLoading || !inputValue.trim()}
                             style={{
-                                background: input.trim() && !isLoading ? 'var(--primary-blue)' : 'var(--bg-color)',
+                                background: !isLoading && inputValue.trim() ? 'var(--primary-blue)' : 'var(--bg-color)',
                                 border: 'none',
-                                cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+                                cursor: !isLoading && inputValue.trim() ? 'pointer' : 'not-allowed',
                                 padding: '0.75rem',
                                 borderRadius: '50%',
                                 display: 'flex',
@@ -338,7 +375,7 @@ export default function VoiceAssistant() {
                             }}
                             title="Send message"
                         >
-                            <Send size={20} color={input.trim() && !isLoading ? 'white' : 'var(--text-secondary)'} />
+                            <Send size={20} color={!isLoading && inputValue.trim() ? 'white' : 'var(--text-secondary)'} />
                         </button>
                     </form>
                 </div>
