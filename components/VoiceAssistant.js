@@ -51,6 +51,8 @@ export default function VoiceAssistant() {
             console.log("AI finished. Waiting for DB...");
             setTimeout(() => {
                 console.log("Refreshing page data now.");
+                // Dispatch custom event that Dashboard listens for
+                window.dispatchEvent(new Event('reloadDashboardData'));
                 router.refresh();
             }, 1000);
         } catch (error) {
