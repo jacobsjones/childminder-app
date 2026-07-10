@@ -4,7 +4,6 @@ import { Camera, Send, MailWarning } from 'lucide-react';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 
-const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
 export default function FinancesPage() {
@@ -228,7 +227,7 @@ export default function FinancesPage() {
                                 <div key={child.id} className="card row-between" style={{ marginBottom: 0, flexWrap: 'wrap' }}>
                                     <div className="row">
                                         <div className={`avatar blob-${sum % 4}`} aria-hidden="true">
-                                            {EMOJI[sum % EMOJI.length]}
+                                            {child.name.charAt(0).toUpperCase()}
                                         </div>
                                         <div>
                                             <h3 style={{ margin: 0 }}>{child.name}</h3>

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Plus, ChevronRight } from 'lucide-react';
 
-const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
 export default function ChildrenPage() {
@@ -77,7 +76,7 @@ export default function ChildrenPage() {
                             <div className="card card-tap row-between" style={{ marginBottom: 0 }}>
                                 <div className="row">
                                     <div className={`avatar blob-${sum % 4}`} aria-hidden="true">
-                                        {EMOJI[sum % EMOJI.length]}
+                                        {child.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div>
                                         <h3 style={{ margin: 0 }}>{child.name}</h3>

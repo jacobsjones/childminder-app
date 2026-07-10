@@ -501,17 +501,19 @@ button {
   flex-shrink: 0;
   width: 3.25rem;
   height: 3.25rem;
-  font-size: 1.6rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.4rem;
   transition: border-radius var(--t-med) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 
-.avatar-sm { width: 2.6rem; height: 2.6rem; font-size: 1.25rem; }
-.avatar-lg { width: 4.25rem; height: 4.25rem; font-size: 2.1rem; }
+.avatar-sm { width: 2.6rem; height: 2.6rem; font-size: 1.1rem; }
+.avatar-lg { width: 4.25rem; height: 4.25rem; font-size: 1.9rem; }
 
-.avatar.blob-0 { background: var(--leaf-soft); border-radius: 61% 39% 52% 48% / 44% 59% 41% 56%; }
-.avatar.blob-1 { background: var(--sky-soft); border-radius: 39% 61% 45% 55% / 58% 40% 60% 42%; }
-.avatar.blob-2 { background: var(--sun-soft); border-radius: 52% 48% 62% 38% / 42% 55% 45% 58%; }
-.avatar.blob-3 { background: var(--berry-soft); border-radius: 45% 55% 40% 60% / 55% 45% 60% 40%; }
+.avatar.blob-0 { background: var(--leaf-soft); color: var(--leaf-deep); border-radius: 61% 39% 52% 48% / 44% 59% 41% 56%; }
+.avatar.blob-1 { background: var(--sky-soft); color: var(--sky-deep); border-radius: 39% 61% 45% 55% / 58% 40% 60% 42%; }
+.avatar.blob-2 { background: var(--sun-soft); color: var(--sun-deep); border-radius: 52% 48% 62% 38% / 42% 55% 45% 58%; }
+.avatar.blob-3 { background: var(--berry-soft); color: var(--berry-deep); border-radius: 45% 55% 40% 60% / 55% 45% 60% 40%; }
 
 .card-tap:hover .avatar { transform: rotate(-4deg) scale(1.05); }
 
@@ -804,14 +806,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ============ Garden home ============ */
 
 .sun-blob {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   background: var(--sun-soft);
+  color: var(--sun-deep);
   border-radius: 61% 39% 52% 48% / 44% 59% 41% 56%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.9rem;
   flex-shrink: 0;
   animation: sun-bob 6s ease-in-out infinite alternate;
 }
@@ -834,9 +836,6 @@ body.scene-locked .container {
   padding-bottom: 0;
 }
 
-body.scene-locked .hills-bg::after {
-  height: 0;
-}
 
 /* Sky above the garden */
 .sky {
@@ -869,17 +868,24 @@ body.scene-locked .hills-bg::after {
   to { transform: translateX(14px); }
 }
 
-/* Garden docked to the bottom of the screen */
+/* Garden docked to the bottom of the screen.
+   --nav-clearance lifts the ground line above the floating nav;
+   solid grass continues below it to the very bottom edge. */
+:root {
+  --nav-clearance: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
 .garden-dock {
   position: relative;
   margin: 0 -1rem;
+  padding-bottom: var(--nav-clearance);
 }
 
 .hills-bg {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--nav-clearance);
   height: 115px;
   pointer-events: none;
 }
@@ -893,16 +899,20 @@ body.scene-locked .hills-bg::after {
 .hills-bg::after {
   content: "";
   position: absolute;
-  top: 100%;
+  top: calc(100% - 1px);
   left: 0;
   right: 0;
-  height: calc(1.25rem + 88px + env(safe-area-inset-bottom, 0px));
+  height: calc(var(--nav-clearance) + 1px);
   background: color-mix(in oklab, var(--leaf-soft), var(--leaf) 16%);
 }
 
 @media (min-width: 768px) {
-  .garden-dock { margin: 0 -2rem; }
-  .hills-bg::after { height: 2.5rem; }
+  .garden-dock {
+    margin: 0 -2rem;
+    padding-bottom: 2rem;
+  }
+  .hills-bg { bottom: 2rem; }
+  .hills-bg::after { height: calc(2rem + 1px); }
 }
 
 .garden-scroll {
@@ -979,18 +989,21 @@ body.scene-locked .hills-bg::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
   cursor: pointer;
   border: none;
   padding: 0;
   transition: transform var(--t-fast) var(--ease-out), border-radius var(--t-med) var(--ease-out);
 }
 
-.sprout-blob.grown-manual { background: var(--leaf); }
-.sprout-blob.grown-auto { background: var(--sky); }
+.sprout-blob.grown-manual { background: var(--leaf); color: var(--on-leaf); }
+.sprout-blob.grown-auto { background: var(--sky); color: var(--on-leaf); }
 
 .sprout-blob.dormant {
   background: var(--surface);
+  color: var(--ink-soft);
   border: 2px dashed var(--line-strong);
 }
 

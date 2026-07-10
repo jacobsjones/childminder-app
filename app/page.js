@@ -2,10 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Sun } from 'lucide-react';
 import HoursLogModal from '@/components/HoursLogModal';
-
-const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
@@ -32,7 +30,6 @@ export default function Dashboard() {
                 const sum = nameHash(c.name);
                 return {
                     ...c,
-                    icon: EMOJI[sum % EMOJI.length],
                     shape: `shape-${sum % 4}`,
                 };
             });
@@ -117,24 +114,21 @@ export default function Dashboard() {
     };
 
     const loggedTodayCount = children.filter(c => c.todayRecord).length;
-    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const weekday = new Date().toLocaleDateString('en-GB', { weekday: 'long' });
 
     return (
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            <header className="row" style={{ gap: '1rem', marginBottom: '0.5rem' }}>
-                <div className="sun-blob" aria-hidden="true">☀️</div>
-                <div>
-                    <h1 style={{ marginBottom: '0.15rem' }}>Hey Sue!</h1>
-                    <p className="page-sub" style={{ marginTop: 0 }}>
-                        {today}
-                        {!loading && children.length > 0 && (
-                            <> · {loggedTodayCount === 0
-                                ? 'the garden is waiting'
-                                : `${loggedTodayCount} of ${children.length} growing today`}
-                            </>
-                        )}
-                    </p>
+            <header style={{ marginBottom: '0.5rem' }}>
+                <div className="sun-blob" aria-hidden="true">
+                    <Sun size={26} strokeWidth={2.2} />
                 </div>
+                <h1 style={{ margin: '1rem 0 0.15rem' }}>Hey Sue!</h1>
+                <p className="page-sub" style={{ marginTop: 0 }}>
+                    {weekday}
+                    {!loading && children.length > 0 && (
+                        <> · {loggedTodayCount} of {children.length} logged</>
+                    )}
+                </p>
             </header>
 
             <Sky />
@@ -318,7 +312,7 @@ function Garden({ childrenData, onLogHours, onDeleteRecord }) {
                                         onClick={() => router.push(`/children/${child.id}`)}
                                         aria-label={`Open ${child.name}'s profile`}
                                     >
-                                        <span aria-hidden="true">{child.icon}</span>
+                                        <span aria-hidden="true">{child.name.charAt(0).toUpperCase()}</span>
                                     </button>
 
                                     <span className="sprout-name">{child.name}</span>

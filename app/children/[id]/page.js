@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, Edit2, Trash, Plus } from 'lucide-react';
 import ManualEntryModal from '@/components/ManualEntryModal';
 
-const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
 export default function ChildProfile({ params }) {
@@ -187,7 +186,7 @@ export default function ChildProfile({ params }) {
                 <div className="row-between" style={{ alignItems: 'flex-start' }}>
                     <div className="row" style={{ gap: '1rem' }}>
                         <div className={`avatar avatar-lg blob-${sum % 4}`} aria-hidden="true">
-                            {EMOJI[sum % EMOJI.length]}
+                            {child.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
                             <h1 style={{ marginBottom: '0.3rem' }}>{child.name}</h1>
