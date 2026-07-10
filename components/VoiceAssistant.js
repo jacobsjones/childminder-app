@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Mic, MicOff, Loader2, Send, X, MessageSquare } from 'lucide-react';
+import { Mic, MicOff, Loader2, Send, X, Sparkles } from 'lucide-react';
 
 export default function VoiceAssistant() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -18,7 +18,6 @@ export default function VoiceAssistant() {
     const sendMessage = async (content) => {
         if (!content.trim() || isLoading) return;
 
-        // Add user message to state
         const userMessage = { role: 'user', content: content.trim() };
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
@@ -38,7 +37,6 @@ export default function VoiceAssistant() {
 
             const data = await response.json();
 
-            // Handle the response - could be streaming or regular
             if (data.content) {
                 setMessages([...updatedMessages, { role: 'assistant', content: data.content }]);
             } else if (data.text) {
@@ -48,10 +46,7 @@ export default function VoiceAssistant() {
             }
 
             // Wait for DB write to complete before refreshing
-            console.log("AI finished. Waiting for DB...");
             setTimeout(() => {
-                console.log("Refreshing page data now.");
-                // Dispatch custom event that Dashboard listens for
                 window.dispatchEvent(new Event('reloadDashboardData'));
                 router.refresh();
             }, 1000);
@@ -63,7 +58,6 @@ export default function VoiceAssistant() {
         }
     };
 
-    // Custom form submit handler
     const handleFormSubmit = async (e) => {
         e.preventDefault();
         if (!inputValue.trim() || isLoading) return;
@@ -102,7 +96,6 @@ export default function VoiceAssistant() {
     }, [messages]);
 
     useEffect(() => {
-        // Initialize Speech Recognition
         if (typeof window !== 'undefined') {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -110,14 +103,12 @@ export default function VoiceAssistant() {
                 const recognition = new SpeechRecognition();
                 recognition.continuous = false;
                 recognition.interimResults = false;
-                recognition.lang = 'en-US';
+                recognition.lang = 'en-GB';
 
                 recognition.onresult = (event) => {
                     const transcript = event.results[0][0].transcript;
-                    console.log('[Voice] Transcript received:', transcript);
                     setIsListening(false);
 
-                    // Submit the voice command directly
                     if (transcript.trim()) {
                         sendMessage(transcript);
                     }
@@ -129,7 +120,6 @@ export default function VoiceAssistant() {
                 };
 
                 recognition.onend = () => {
-                    console.log('[Voice] Recognition ended');
                     setIsListening(false);
                 };
 
@@ -151,7 +141,6 @@ export default function VoiceAssistant() {
         }
 
         if (isListening) {
-            console.log('[Voice] Stopping recognition');
             try {
                 recognitionRef.current.stop();
             } catch (e) {
@@ -159,7 +148,6 @@ export default function VoiceAssistant() {
             }
             setIsListening(false);
         } else {
-            console.log('[Voice] Starting recognition');
             setIsListening(true);
             try {
                 recognitionRef.current.start();
@@ -175,90 +163,45 @@ export default function VoiceAssistant() {
             {/* Floating Action Button */}
             <button
                 onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-                style={{
-                    position: 'fixed',
-                    bottom: '90px',
-                    right: '20px',
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '50%',
-                    border: 'none',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                    transition: 'all 0.3s ease',
-                    zIndex: 100,
-                    background: isDrawerOpen ? '#ef4444' : 'var(--primary-blue)',
-                }}
-                title={isDrawerOpen ? 'Close assistant' : 'Open assistant'}
+                className="assistant-fab"
+                title={isDrawerOpen ? 'Close assistant' : 'Ask the assistant'}
+                aria-label={isDrawerOpen ? 'Close assistant' : 'Open assistant'}
+                aria-expanded={isDrawerOpen}
             >
                 {isDrawerOpen ? (
-                    <X size={28} color="white" />
+                    <X size={26} />
                 ) : (
-                    <MessageSquare size={28} color="white" />
+                    <Sparkles size={26} />
                 )}
             </button>
 
             {/* Chat Drawer */}
             {isDrawerOpen && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        bottom: '0',
-                        right: '0',
-                        width: '100%',
-                        maxWidth: '400px',
-                        height: '600px',
-                        background: 'var(--bg-card)',
-                        borderRadius: '16px 16px 0 0',
-                        boxShadow: '0 -4px 24px rgba(0, 0, 0, 0.3)',
-                        zIndex: 99,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        animation: 'slideUp 0.3s ease-out',
-                    }}
-                >
+                <div className="assistant-drawer" role="dialog" aria-label="Assistant chat">
                     {/* Header */}
-                    <div
-                        style={{
-                            padding: '1rem 1.5rem',
-                            borderBottom: '1px solid var(--border-color)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>AI Assistant</h3>
+                    <div className="row-between" style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--line)' }}>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Sparkles size={18} color="var(--leaf)" aria-hidden="true" /> Assistant
+                        </h3>
                         <button
                             onClick={() => setIsDrawerOpen(false)}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: '0.25rem',
-                            }}
+                            className="btn btn-ghost btn-icon"
+                            style={{ width: '36px', height: '36px' }}
+                            aria-label="Close"
                         >
-                            <X size={20} color="var(--text-secondary)" />
+                            <X size={18} />
                         </button>
                     </div>
 
                     {/* Message History */}
-                    <div
-                        style={{
-                            flex: 1,
-                            overflowY: 'auto',
-                            padding: '1rem',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '1rem',
-                        }}
-                    >
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {messages.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', marginTop: '2rem' }}>
-                                <MessageSquare size={48} color="var(--text-secondary)" style={{ opacity: 0.3, marginBottom: '1rem' }} />
-                                <p>Start a conversation by typing below or using the microphone.</p>
+                            <div className="empty-state" style={{ marginTop: '1.5rem' }}>
+                                <span className="empty-emoji" aria-hidden="true">👋</span>
+                                <p style={{ margin: '0 auto 0.5rem' }}>Try saying:</p>
+                                <p style={{ margin: '0 auto', fontStyle: 'italic', fontSize: '0.9rem' }}>
+                                    {'"Log 6 hours for Emma" · "Add a child named Tom" · "Who\'s registered?"'}
+                                </p>
                             </div>
                         ) : (
                             messages.map((msg, idx) => (
@@ -271,12 +214,12 @@ export default function VoiceAssistant() {
                                 >
                                     <div
                                         style={{
-                                            background: msg.role === 'user' ? 'var(--primary-blue)' : 'var(--bg-color)',
-                                            color: msg.role === 'user' ? 'white' : 'var(--text-color)',
-                                            padding: '0.75rem 1rem',
-                                            borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                                            background: msg.role === 'user' ? 'var(--leaf)' : 'var(--surface-2)',
+                                            color: msg.role === 'user' ? 'var(--on-leaf)' : 'var(--ink)',
+                                            padding: '0.7rem 1rem',
+                                            borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                                             fontSize: '0.95rem',
-                                            lineHeight: '1.4',
+                                            lineHeight: '1.45',
                                             wordWrap: 'break-word',
                                         }}
                                     >
@@ -287,18 +230,9 @@ export default function VoiceAssistant() {
                         )}
                         {isLoading && (
                             <div style={{ alignSelf: 'flex-start', maxWidth: '80%' }}>
-                                <div
-                                    style={{
-                                        background: 'var(--bg-color)',
-                                        padding: '0.75rem 1rem',
-                                        borderRadius: '16px 16px 16px 4px',
-                                        display: 'flex',
-                                        gap: '0.5rem',
-                                        alignItems: 'center',
-                                    }}
-                                >
-                                    <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                                    <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Thinking...</span>
+                                <div className="row" style={{ background: 'var(--surface-2)', padding: '0.7rem 1rem', borderRadius: '18px 18px 18px 4px', gap: '0.5rem' }}>
+                                    <Loader2 size={16} className="spin" aria-hidden="true" />
+                                    <span style={{ fontSize: '0.95rem', color: 'var(--ink-soft)' }}>Thinking…</span>
                                 </div>
                             </div>
                         )}
@@ -308,111 +242,120 @@ export default function VoiceAssistant() {
                     {/* Input Area */}
                     <form
                         onSubmit={handleFormSubmit}
-                        style={{
-                            padding: '1rem',
-                            borderTop: '1px solid var(--border-color)',
-                            display: 'flex',
-                            gap: '0.5rem',
-                            alignItems: 'center',
-                        }}
+                        style={{ padding: '0.9rem 1rem', borderTop: '1px solid var(--line)', display: 'flex', gap: '0.5rem', alignItems: 'center' }}
                     >
                         <div
                             style={{
                                 flex: 1,
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '0.5rem',
-                                background: 'var(--bg-color)',
-                                borderRadius: '24px',
-                                padding: '0.5rem 1rem',
-                                border: '1px solid var(--border-color)',
+                                gap: '0.4rem',
+                                background: 'var(--surface-2)',
+                                borderRadius: 'var(--r-pill)',
+                                padding: '0.35rem 0.5rem 0.35rem 0.35rem',
+                                border: '1.5px solid var(--line)',
                             }}
                         >
                             <button
                                 type="button"
                                 onClick={toggleListening}
+                                className="btn btn-icon"
                                 style={{
-                                    background: isListening ? '#ef4444' : 'transparent',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '0.5rem',
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    transition: 'all 0.2s',
+                                    width: '38px',
+                                    height: '38px',
+                                    background: isListening ? 'var(--berry)' : 'transparent',
+                                    color: isListening ? '#fff' : 'var(--ink-soft)',
                                 }}
-                                title={isListening ? 'Stop listening' : 'Start voice input'}
+                                title={isListening ? 'Stop listening' : 'Speak instead'}
+                                aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+                                aria-pressed={isListening}
                             >
-                                {isListening ? (
-                                    <Mic size={20} color="white" style={{ animation: 'pulse 1s infinite' }} />
-                                ) : (
-                                    <MicOff size={20} color="var(--text-secondary)" />
-                                )}
+                                {isListening ? <Mic size={19} /> : <MicOff size={19} />}
                             </button>
                             <input
                                 type="text"
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
-                                placeholder="Type a message..."
+                                placeholder="Type or speak…"
                                 style={{
                                     flex: 1,
                                     background: 'transparent',
                                     border: 'none',
                                     outline: 'none',
                                     fontSize: '0.95rem',
-                                    color: 'var(--text-color)',
+                                    color: 'var(--ink)',
+                                    padding: '0.4rem 0.25rem',
+                                    marginBottom: 0,
+                                    boxShadow: 'none',
                                 }}
                                 disabled={isLoading}
+                                aria-label="Message the assistant"
                             />
                         </div>
                         <button
                             type="submit"
                             disabled={isLoading || !inputValue.trim()}
-                            style={{
-                                background: !isLoading && inputValue.trim() ? 'var(--primary-blue)' : 'var(--bg-color)',
-                                border: 'none',
-                                cursor: !isLoading && inputValue.trim() ? 'pointer' : 'not-allowed',
-                                padding: '0.75rem',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.2s',
-                            }}
+                            className="btn btn-primary btn-icon"
                             title="Send message"
+                            aria-label="Send message"
                         >
-                            <Send size={20} color={!isLoading && inputValue.trim() ? 'white' : 'var(--text-secondary)'} />
+                            <Send size={19} />
                         </button>
                     </form>
                 </div>
             )}
 
-            {/* CSS Animations */}
             <style jsx>{`
-                @keyframes pulse {
-                    0%, 100% {
-                        transform: scale(1);
-                        opacity: 1;
-                    }
-                    50% {
-                        transform: scale(1.05);
-                        opacity: 0.9;
-                    }
+                .assistant-fab {
+                    position: fixed;
+                    bottom: calc(env(safe-area-inset-bottom, 0px) + 92px);
+                    right: 18px;
+                    width: 58px;
+                    height: 58px;
+                    border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%;
+                    border: none;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: var(--shadow-md);
+                    transition: transform var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out), border-radius var(--t-med) var(--ease-out);
+                    z-index: var(--z-fab);
+                    background: var(--leaf);
+                    color: var(--on-leaf);
                 }
 
-                @keyframes spin {
-                    from {
-                        transform: rotate(0deg);
-                    }
-                    to {
-                        transform: rotate(360deg);
-                    }
+                .assistant-fab:hover {
+                    transform: scale(1.06);
+                    border-radius: 50%;
+                    background: var(--leaf-hover);
                 }
 
-                @keyframes slideUp {
+                .assistant-fab:active {
+                    transform: scale(0.94);
+                }
+
+                .assistant-drawer {
+                    position: fixed;
+                    bottom: 0;
+                    right: 0;
+                    width: 100%;
+                    max-width: 400px;
+                    height: min(600px, 85vh);
+                    background: var(--surface);
+                    border: 1px solid var(--line);
+                    border-bottom: none;
+                    border-radius: var(--r-lg) var(--r-lg) 0 0;
+                    box-shadow: var(--shadow-lg);
+                    z-index: var(--z-drawer);
+                    display: flex;
+                    flex-direction: column;
+                    animation: drawerUp var(--t-med) var(--ease-out);
+                }
+
+                @keyframes drawerUp {
                     from {
-                        transform: translateY(100%);
+                        transform: translateY(24px);
                         opacity: 0;
                     }
                     to {
@@ -421,10 +364,23 @@ export default function VoiceAssistant() {
                     }
                 }
 
-                @media (max-width: 768px) {
-                    .chat-drawer {
-                        width: 100% !important;
-                        max-width: 100% !important;
+                @media (min-width: 768px) {
+                    .assistant-fab {
+                        bottom: 24px;
+                        right: 24px;
+                    }
+                    .assistant-drawer {
+                        bottom: 0;
+                        right: 24px;
+                    }
+                }
+
+                @media (prefers-reduced-motion: reduce) {
+                    .assistant-drawer {
+                        animation: none;
+                    }
+                    .assistant-fab:hover {
+                        transform: none;
                     }
                 }
             `}</style>

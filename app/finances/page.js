@@ -1,18 +1,19 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import { ArrowLeft, Camera } from 'lucide-react';
+import { Camera, Send, MailWarning } from 'lucide-react';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 
+const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
+const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
 export default function FinancesPage() {
-    const [activeTab, setActiveTab] = useState('invoices'); // 'invoices' or 'expenses'
+    const [activeTab, setActiveTab] = useState('invoices');
     const [children, setChildren] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [settings, setSettings] = useState(null);
     const [invoices, setInvoices] = useState([]);
 
-    // Invoice Preview Modal State
     const [previewModal, setPreviewModal] = useState({
         isOpen: false,
         pdfDataUri: null,
@@ -20,27 +21,22 @@ export default function FinancesPage() {
         invoiceData: null
     });
 
-    // Expense Form
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
 
     const loadData = useCallback(async () => {
         try {
-            // Load children
             const childrenResponse = await fetch('/api/children');
             if (childrenResponse.ok) {
                 setChildren(await childrenResponse.json());
             }
 
-            // Load expenses (not yet implemented)
             setExpenses([]);
 
-            // Load settings
             const settingsResponse = await fetch('/api/settings');
             if (settingsResponse.ok) {
                 setSettings(await settingsResponse.json());
             }
 
-            // Load invoices
             const invoicesResponse = await fetch('/api/invoices');
             if (invoicesResponse.ok) {
                 setInvoices(await invoicesResponse.json());
@@ -97,60 +93,51 @@ export default function FinancesPage() {
     const handleAddExpense = async (e) => {
         e.preventDefault();
         if (!expenseForm.desc || !expenseForm.amount) return;
-        // Expenses not yet implemented for Postgres
         console.log('Expense add not yet implemented');
         setExpenseForm({ desc: '', amount: '' });
     };
 
     const handleGenerateInvoice = async (child) => {
         try {
-            // Get all attendance sessions for this child
             const response = await fetch('/api/sync');
             if (!response.ok) throw new Error('Failed to fetch attendance');
 
             const { attendance: allAttendance } = await response.json();
-        const childSessions = allAttendance.filter(a => {
-            // Include hours-based records or completed time-based records
-            return a.childId === child.id && (a.hours !== undefined || a.endTime);
-        });
+            const childSessions = allAttendance.filter(a => {
+                return a.childId === child.id && (a.hours !== undefined || a.endTime);
+            });
 
-        // Calculate total hours (support both hours-based and time-based)
-        let totalHours = 0;
-        childSessions.forEach(s => {
-            if (s.hours !== undefined) {
-                // New hours-based system
-                totalHours += s.hours;
-            } else if (s.startTime && s.endTime) {
-                // Old time-based system (backward compatibility)
-                const start = new Date(s.startTime);
-                const end = new Date(s.endTime);
-                const hours = (end - start) / (1000 * 60 * 60);
-                totalHours += hours;
-            }
-        });
+            let totalHours = 0;
+            childSessions.forEach(s => {
+                if (s.hours !== undefined) {
+                    totalHours += s.hours;
+                } else if (s.startTime && s.endTime) {
+                    const start = new Date(s.startTime);
+                    const end = new Date(s.endTime);
+                    const hours = (end - start) / (1000 * 60 * 60);
+                    totalHours += hours;
+                }
+            });
 
-        totalHours = Math.round(totalHours * 100) / 100;
+            totalHours = Math.round(totalHours * 100) / 100;
 
-        // Prepare invoice data
-        const invoiceData = {
-            childName: child.name,
-            parentEmail: child.email || '',
-            totalHours: totalHours,
-            hourlyRate: child.rate,
-            sessions: childSessions,
-            settings: settings // Include business settings for payment info
-        };
+            const invoiceData = {
+                childName: child.name,
+                parentEmail: child.email || '',
+                totalHours: totalHours,
+                hourlyRate: child.rate,
+                sessions: childSessions,
+                settings: settings
+            };
 
-        // Generate PDF
-        const { pdfDataUri, fileName } = generateInvoicePDF(invoiceData);
+            const { pdfDataUri, fileName } = generateInvoicePDF(invoiceData);
 
-        // Open preview modal
-        setPreviewModal({
-            isOpen: true,
-            pdfDataUri,
-            fileName,
-            invoiceData
-        });
+            setPreviewModal({
+                isOpen: true,
+                pdfDataUri,
+                fileName,
+                invoiceData
+            });
         } catch (error) {
             console.error('Failed to generate invoice:', error);
             alert('Failed to generate invoice');
@@ -192,137 +179,134 @@ export default function FinancesPage() {
         });
     };
 
+    const thisMonthTotal = (() => {
+        const now = new Date();
+        return invoices
+            .filter(inv => {
+                const invoiceDate = new Date(inv.dateSent);
+                return invoiceDate.getMonth() === now.getMonth() &&
+                    invoiceDate.getFullYear() === now.getFullYear();
+            })
+            .reduce((sum, inv) => sum + inv.amount, 0);
+    })();
+
     return (
         <main>
-            <header style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem' }}>
-                <Link href="/" style={{ marginRight: '1rem', color: 'var(--text-color)' }}><ArrowLeft /></Link>
-                <h1>Finances</h1>
+            <header style={{ marginBottom: '1.75rem' }}>
+                <h1 style={{ marginBottom: '0.25rem' }}>Invoices</h1>
+                <p className="page-sub">Preview, send and track invoices for each family.</p>
             </header>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', marginBottom: '1.5rem', background: 'var(--bg-color)', padding: '0.25rem', borderRadius: '0.8rem' }}>
+            <div className="seg" style={{ marginBottom: '1.5rem' }} role="tablist">
                 <button
                     onClick={() => setActiveTab('invoices')}
-                    style={{ flex: 1, padding: '0.8rem', borderRadius: '0.6rem', background: activeTab === 'invoices' ? 'var(--bg-card)' : 'transparent', fontWeight: activeTab === 'invoices' ? 600 : 400, color: 'var(--text-color)' }}
+                    className={`seg-btn ${activeTab === 'invoices' ? 'active' : ''}`}
+                    role="tab"
+                    aria-selected={activeTab === 'invoices'}
                 >
                     Invoices
                 </button>
                 <button
                     onClick={() => setActiveTab('expenses')}
-                    style={{ flex: 1, padding: '0.8rem', borderRadius: '0.6rem', background: activeTab === 'expenses' ? 'var(--bg-card)' : 'transparent', fontWeight: activeTab === 'expenses' ? 600 : 400, color: 'var(--text-color)' }}
+                    className={`seg-btn ${activeTab === 'expenses' ? 'active' : ''}`}
+                    role="tab"
+                    aria-selected={activeTab === 'expenses'}
                 >
-                    My Spending
+                    My spending
                 </button>
             </div>
 
             {activeTab === 'invoices' && (
                 <section>
-                    <div className="card bg-blue">
-                        <h3>Ready to Invoice</h3>
-                        <p>Preview and send professional invoices to parents via email.</p>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div className="stack">
                         {children.map(child => {
                             const summary = summaries[child.id] || { hours: 0, cost: '0.00' };
+                            const sum = nameHash(child.name);
 
                             return (
-                                <div key={child.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 0, flexWrap: 'wrap', gap: '1rem' }}>
-                                    <div>
-                                        <h3>{child.name}</h3>
-                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                            {summary.hours.toFixed(1)} hrs @ £{child.rate}/hr = £{summary.cost}
-                                        </p>
-                                        {child.email && (
-                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                                📧 {child.email}
+                                <div key={child.id} className="card row-between" style={{ marginBottom: 0, flexWrap: 'wrap' }}>
+                                    <div className="row">
+                                        <div className={`avatar blob-${sum % 4}`} aria-hidden="true">
+                                            {EMOJI[sum % EMOJI.length]}
+                                        </div>
+                                        <div>
+                                            <h3 style={{ margin: 0 }}>{child.name}</h3>
+                                            <p style={{ color: 'var(--ink-soft)', fontSize: '0.9rem', marginTop: '0.2rem' }}>
+                                                {summary.hours.toFixed(1)} hrs @ £{child.rate}/hr
+                                                {' · '}
+                                                <strong style={{ color: 'var(--ink)' }}>£{summary.cost}</strong>
                                             </p>
-                                        )}
-                                        {!child.email && (
-                                            <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>
-                                                ⚠️ No email configured
-                                            </p>
-                                        )}
+                                            {child.email ? (
+                                                <p style={{ color: 'var(--ink-soft)', fontSize: '0.82rem', marginTop: '0.15rem' }}>
+                                                    {child.email}
+                                                </p>
+                                            ) : (
+                                                <span className="chip chip-berry" style={{ marginTop: '0.35rem' }}>
+                                                    <MailWarning size={13} aria-hidden="true" /> No parent email yet
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                     <button
                                         onClick={() => handleGenerateInvoice(child)}
-                                        className="bg-blue"
-                                        style={{ padding: '0.8rem 1.2rem', borderRadius: '0.5rem', fontWeight: 600 }}
+                                        className="btn btn-primary"
                                         disabled={!child.email}
+                                        title={child.email ? `Preview invoice for ${child.name}` : 'Add a parent email first'}
                                     >
-                                        Preview Invoice
+                                        <Send size={17} /> Preview
                                     </button>
                                 </div>
                             );
                         })}
-                        {children.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No children found.</p>}
+                        {children.length === 0 && (
+                            <div className="card empty-state" style={{ marginBottom: 0 }}>
+                                <span className="empty-emoji" aria-hidden="true">🧾</span>
+                                <p style={{ margin: '0 auto' }}>Add a child first — invoices are built from their logged hours.</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Invoice History */}
-                    <div style={{ marginTop: '3rem' }}>
-                        <h2 style={{ marginBottom: '1rem' }}>Invoice History</h2>
+                    <div style={{ marginTop: '2.5rem' }}>
+                        <div className="row-between" style={{ marginBottom: '1rem' }}>
+                            <h2 style={{ margin: 0 }}>Sent this month</h2>
+                            {invoices.length > 0 && (
+                                <span className="stat-number" style={{ fontSize: '1.5rem', color: 'var(--leaf-deep)' }}>
+                                    £{thisMonthTotal.toFixed(2)}
+                                </span>
+                            )}
+                        </div>
 
-                        {/* Summary Card */}
-                        {invoices.length > 0 && (
-                            <div className="card bg-green" style={{ marginBottom: '1.5rem' }}>
-                                <h3>Total Invoiced This Month</h3>
-                                <p style={{ fontSize: '2rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                                    £{(() => {
-                                        const now = new Date();
-                                        const thisMonthInvoices = invoices.filter(inv => {
-                                            const invoiceDate = new Date(inv.dateSent);
-                                            return invoiceDate.getMonth() === now.getMonth() &&
-                                                   invoiceDate.getFullYear() === now.getFullYear();
-                                        });
-                                        const total = thisMonthInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-                                        return total.toFixed(2);
-                                    })()}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* Sent Invoices List */}
-                        <h3 style={{ marginBottom: '1rem' }}>Sent Invoices</h3>
                         {invoices.length === 0 ? (
-                            <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-                                <p style={{ color: 'var(--text-secondary)' }}>No invoices sent yet.</p>
+                            <div className="card empty-state">
+                                <span className="empty-emoji" aria-hidden="true">💌</span>
+                                <p style={{ margin: '0 auto' }}>Nothing sent yet — your invoice history will land here.</p>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div className="stack" style={{ gap: '0.75rem' }}>
                                 {invoices.map(invoice => (
-                                    <div key={invoice.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', marginBottom: 0 }}>
+                                    <div key={invoice.id} className="card row-between" style={{ padding: '1rem 1.25rem', marginBottom: 0 }}>
                                         <div>
-                                            <p style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{invoice.childName}</p>
-                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                            <p style={{ fontWeight: 600, marginBottom: '0.2rem' }}>{invoice.childName}</p>
+                                            <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
                                                 {new Date(invoice.dateSent).toLocaleDateString('en-GB', {
                                                     day: 'numeric',
                                                     month: 'short',
                                                     year: 'numeric',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit'
-                                                })} • {invoice.period}
+                                                })} · {invoice.period}
                                             </p>
                                             {invoice.parentEmail && (
-                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                                                    📧 {invoice.parentEmail}
+                                                <p style={{ color: 'var(--ink-soft)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
+                                                    {invoice.parentEmail}
                                                 </p>
                                             )}
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
-                                            <p style={{ fontWeight: 600, fontSize: '1.1rem', marginBottom: '0.25rem' }}>
+                                            <p className="stat-number" style={{ fontSize: '1.15rem', marginBottom: '0.3rem' }}>
                                                 £{invoice.amount.toFixed(2)}
                                             </p>
-                                            <span style={{
-                                                display: 'inline-block',
-                                                padding: '0.25rem 0.75rem',
-                                                borderRadius: '0.5rem',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 600,
-                                                background: '#dcfce7',
-                                                color: '#166534'
-                                            }}>
-                                                Sent
-                                            </span>
+                                            <span className="chip chip-leaf">Sent ✓</span>
                                         </div>
                                     </div>
                                 ))}
@@ -334,49 +318,56 @@ export default function FinancesPage() {
 
             {activeTab === 'expenses' && (
                 <section>
-                    {/* Add Expense */}
                     <form onSubmit={handleAddExpense} className="card">
-                        <h3>Add New Expense</h3>
+                        <div className="row-between" style={{ marginBottom: '1rem' }}>
+                            <h3 style={{ margin: 0 }}>Log an expense</h3>
+                            <span className="chip chip-sun">Coming soon</span>
+                        </div>
+                        <label htmlFor="expense-desc">What was it?</label>
                         <input
-                            placeholder="What did you buy? (e.g. Snacks)"
+                            id="expense-desc"
+                            placeholder="e.g. Snacks, craft supplies"
                             value={expenseForm.desc}
                             onChange={(e) => setExpenseForm({ ...expenseForm, desc: e.target.value })}
                             required
                         />
+                        <label htmlFor="expense-amount">Cost (£)</label>
                         <input
+                            id="expense-amount"
                             type="number"
                             step="0.01"
-                            placeholder="Cost (£)"
+                            placeholder="0.00"
                             value={expenseForm.amount}
                             onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
                             required
                         />
 
-                        {/* Fake Camera Input */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                            <Camera size={20} />
-                            <span>Attach Receipt (Simulation)</span>
+                        <div className="row" style={{ marginBottom: '1rem', color: 'var(--ink-soft)', fontSize: '0.9rem' }}>
+                            <Camera size={18} aria-hidden="true" />
+                            <span>Receipt photos coming soon</span>
                         </div>
 
-                        <button type="submit" className="bg-pink btn-large" style={{ fontSize: '1rem', padding: '0.8rem', marginBottom: 0 }}>
-                            + Log Expense
+                        <button type="submit" className="btn btn-soft btn-lg">
+                            + Log expense
                         </button>
                     </form>
 
-                    {/* List */}
-                    <h3>History</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {expenses.map((exp) => (
-                            <div key={exp.id} className="card" style={{ marginBottom: 0, display: 'flex', justifyContent: 'space-between' }}>
-                                <span>{exp.description}</span>
-                                <strong>£{exp.amount.toFixed(2)}</strong>
+                    {expenses.length > 0 && (
+                        <>
+                            <h3>History</h3>
+                            <div className="stack">
+                                {expenses.map((exp) => (
+                                    <div key={exp.id} className="card row-between" style={{ marginBottom: 0 }}>
+                                        <span>{exp.description}</span>
+                                        <strong className="stat-number">£{exp.amount.toFixed(2)}</strong>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
+                        </>
+                    )}
                 </section>
             )}
 
-            {/* Invoice Preview Modal */}
             <InvoicePreviewModal
                 isOpen={previewModal.isOpen}
                 onClose={closePreviewModal}

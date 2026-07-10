@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Trash2, Calendar, Clock, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Calendar, Sunrise } from 'lucide-react';
 
 export default function EditProfile() {
     const { id } = useParams();
@@ -19,7 +19,7 @@ export default function EditProfile() {
                         const data = await response.json();
                         setChild(data.child);
                     } else {
-                        router.push('/children'); // Not found
+                        router.push('/children');
                     }
                 } catch (error) {
                     console.error('Failed to load child:', error);
@@ -59,38 +59,48 @@ export default function EditProfile() {
             schedule: {
                 ...child.schedule,
                 enabled: checked,
-                days: checked ? (child.schedule?.days || []) : [], // Keep days if enabling, optional reset
+                days: checked ? (child.schedule?.days || []) : [],
                 start: checked ? (child.schedule?.start || '08:00') : '',
                 end: checked ? (child.schedule?.end || '17:00') : ''
             }
         });
     };
 
-    if (loading || !child) return <div>Loading...</div>;
+    if (loading || !child) {
+        return (
+            <main aria-busy="true">
+                <div className="card" style={{ height: '14rem', background: 'var(--surface-2)', border: 'none' }} />
+            </main>
+        );
+    }
 
     const isScheduleEnabled = child.schedule?.enabled;
 
     return (
         <main>
-            <header style={{ display: 'flex', alignItems: 'center', marginBottom: '2rem' }}>
-                <Link href="/children" style={{ marginRight: '1rem', color: 'var(--text-color)' }}><ArrowLeft /></Link>
-                <h1>Edit Profile: {child.name}</h1>
+            <header style={{ marginBottom: '1.75rem' }}>
+                <Link href="/children" className="back-link">
+                    <ArrowLeft size={20} /> All children
+                </Link>
+                <h1 style={{ marginBottom: 0 }}>{child.name}&apos;s profile</h1>
             </header>
 
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 {/* Basic Info */}
-                <section className="card">
-                    <h2 style={{ marginBottom: '1.5rem' }}>Basic Information</h2>
+                <section className="card" style={{ marginBottom: 0 }}>
+                    <h2 style={{ marginBottom: '1.25rem' }}>The basics</h2>
 
-                    <label>Childs Name</label>
+                    <label htmlFor="child-name">Child&apos;s name</label>
                     <input
+                        id="child-name"
                         value={child.name}
                         onChange={(e) => setChild({ ...child, name: e.target.value })}
                         required
                     />
 
-                    <label>Hourly Rate (£)</label>
+                    <label htmlFor="child-rate">Hourly rate (£)</label>
                     <input
+                        id="child-rate"
                         type="number"
                         step="0.01"
                         value={child.rate}
@@ -98,25 +108,39 @@ export default function EditProfile() {
                         required
                     />
 
-                    <label>Parent Email</label>
+                    <label htmlFor="parent-email">Parent&apos;s email</label>
                     <input
+                        id="parent-email"
                         type="email"
                         value={child.email || ''}
                         onChange={(e) => setChild({ ...child, email: e.target.value })}
                         placeholder="parent@example.com"
+                        style={{ marginBottom: 0 }}
                     />
+                    <p style={{ fontSize: '0.85rem', color: 'var(--ink-soft)', marginTop: '0.4rem' }}>
+                        Invoices get emailed here each month.
+                    </p>
                 </section>
 
-                {/* Fixed Booking Configuration */}
-                <section className="card" style={{ border: isScheduleEnabled ? '2px solid var(--primary-blue)' : '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                {/* Schedule */}
+                <section
+                    className="card"
+                    style={{
+                        marginBottom: 0,
+                        borderColor: isScheduleEnabled ? 'var(--leaf)' : 'var(--line)',
+                        borderWidth: isScheduleEnabled ? '2px' : '1px',
+                        borderStyle: 'solid',
+                        transition: 'border-color var(--t-med)'
+                    }}
+                >
+                    <div className="row-between" style={{ marginBottom: '1.25rem', alignItems: 'flex-start' }}>
                         <div>
-                            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                <Calendar size={24} color="var(--primary-blue-text)" />
-                                Scheduled / Fixed Booking
+                            <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                                <Calendar size={22} color="var(--leaf)" aria-hidden="true" />
+                                Fixed schedule
                             </h2>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                Automatically log hours for this child.
+                            <p style={{ color: 'var(--ink-soft)', fontSize: '0.9rem' }}>
+                                Log the same hours automatically each week.
                             </p>
                         </div>
                         <label className="switch">
@@ -124,18 +148,20 @@ export default function EditProfile() {
                                 type="checkbox"
                                 checked={isScheduleEnabled || false}
                                 onChange={(e) => toggleSchedule(e.target.checked)}
+                                aria-label="Enable fixed schedule"
                             />
-                            <span className="slider round"></span>
+                            <span className="slider"></span>
                         </label>
                     </div>
 
                     {isScheduleEnabled ? (
-                        <div className="animate-fade-in">
-                            <h4 style={{ marginBottom: '0.5rem' }}>Days of the Week</h4>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                        <div>
+                            <h4 style={{ marginBottom: '0.6rem' }}>Days of the week</h4>
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
                                 {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => {
                                     const days = child.schedule?.days || [];
                                     const isSelected = days.includes(idx);
+                                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                                     return (
                                         <button
                                             key={idx}
@@ -144,15 +170,9 @@ export default function EditProfile() {
                                                 const newDays = isSelected ? days.filter(d => d !== idx) : [...days, idx];
                                                 setChild({ ...child, schedule: { ...child.schedule, days: newDays } });
                                             }}
-                                            style={{
-                                                width: '2.5rem', height: '2.5rem', borderRadius: '50%',
-                                                background: isSelected ? 'var(--primary-blue)' : 'var(--bg-color)',
-                                                color: isSelected ? 'var(--primary-blue-text)' : 'var(--text-color)',
-                                                border: isSelected ? 'none' : '1px solid var(--border-color)',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
+                                            className={`day-pill ${isSelected ? 'selected' : ''}`}
+                                            aria-pressed={isSelected}
+                                            aria-label={dayNames[idx]}
                                         >
                                             {day}
                                         </button>
@@ -160,36 +180,38 @@ export default function EditProfile() {
                                 })}
                             </div>
 
-                            <h4 style={{ marginBottom: '0.5rem' }}>Standard Hours</h4>
+                            <h4 style={{ marginBottom: '0.6rem' }}>Usual hours</h4>
                             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                 <div style={{ flex: 1, minWidth: '140px' }}>
-                                    <label style={{ fontSize: '0.875rem' }}>Drop-off Time</label>
+                                    <label htmlFor="dropoff">Drop-off</label>
                                     <input
+                                        id="dropoff"
                                         type="time"
                                         value={child.schedule?.start || ''}
                                         onChange={(e) => setChild({ ...child, schedule: { ...child.schedule, start: e.target.value } })}
-                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}
+                                        style={{ marginBottom: 0 }}
                                     />
                                 </div>
                                 <div style={{ flex: 1, minWidth: '140px' }}>
-                                    <label style={{ fontSize: '0.875rem' }}>Pick-up Time</label>
+                                    <label htmlFor="pickup">Pick-up</label>
                                     <input
+                                        id="pickup"
                                         type="time"
                                         value={child.schedule?.end || ''}
                                         onChange={(e) => setChild({ ...child, schedule: { ...child.schedule, end: e.target.value } })}
-                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)' }}
+                                        style={{ marginBottom: 0 }}
                                     />
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        <div style={{ background: 'var(--bg-color)', padding: '1rem', borderRadius: '0.5rem', textAlign: 'center' }}>
-                            <p style={{ color: 'var(--text-secondary)' }}>
-                                <Lock size={16} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} />
-                                Pay-as-you-go Mode
+                        <div style={{ background: 'var(--surface-2)', padding: '1.25rem', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
+                            <p style={{ color: 'var(--ink-soft)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                <Sunrise size={17} aria-hidden="true" />
+                                Pay as you go
                             </p>
-                            <p style={{ fontSize: '0.85rem', marginTop: '0.5rem', color: 'var(--text-secondary)' }}>
-                                You will manually check this child in/out on the Dashboard.
+                            <p style={{ fontSize: '0.85rem', marginTop: '0.4rem', color: 'var(--ink-soft)', marginLeft: 'auto', marginRight: 'auto' }}>
+                                You&apos;ll log {child.name}&apos;s hours by hand on the Home screen.
                             </p>
                         </div>
                     )}
@@ -197,55 +219,13 @@ export default function EditProfile() {
 
                 <button
                     type="submit"
-                    className="btn-large bg-green"
-                    style={{ position: 'sticky', bottom: '1rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    className="btn btn-primary btn-lg"
+                    style={{ position: 'sticky', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)', boxShadow: 'var(--shadow-md)' }}
                 >
-                    <Save />
-                    Save Changes
+                    <Save size={20} />
+                    Save changes
                 </button>
             </form>
-
-            <style jsx>{`
-                .switch {
-                  position: relative;
-                  display: inline-block;
-                  width: 50px;
-                  height: 28px;
-                }
-                .switch input { 
-                  opacity: 0;
-                  width: 0;
-                  height: 0;
-                }
-                .slider {
-                  position: absolute;
-                  cursor: pointer;
-                  top: 0;
-                  left: 0;
-                  right: 0;
-                  bottom: 0;
-                  background-color: var(--border-color);
-                  transition: .4s;
-                  border-radius: 34px;
-                }
-                .slider:before {
-                  position: absolute;
-                  content: "";
-                  height: 20px;
-                  width: 20px;
-                  left: 4px;
-                  bottom: 4px;
-                  background-color: white;
-                  transition: .4s;
-                  border-radius: 50%;
-                }
-                input:checked + .slider {
-                  background-color: var(--primary-green);
-                }
-                input:checked + .slider:before {
-                  transform: translateX(22px);
-                }
-            `}</style>
         </main>
     );
 }

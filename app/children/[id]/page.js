@@ -1,13 +1,13 @@
 'use client';
 import { useState, useEffect, use, useCallback } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Edit2, Save, Trash, X, Plus } from 'lucide-react';
-// All database operations moved to API routes
+import { ArrowLeft, Edit2, Trash, Plus } from 'lucide-react';
 import ManualEntryModal from '@/components/ManualEntryModal';
 
+const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
+const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
 export default function ChildProfile({ params }) {
-    // Unwrap params using React.use()
     const { id } = use(params);
     const router = useRouter();
 
@@ -26,7 +26,6 @@ export default function ChildProfile({ params }) {
             const data = await response.json();
             setChild(data.child);
 
-            // Support both hours-based and time-based records
             const childHistory = data.attendance
                 .filter(a => a.hours !== undefined || a.endTime)
                 .sort((a, b) => {
@@ -47,11 +46,9 @@ export default function ChildProfile({ params }) {
     }, [loadData]);
 
     const getRecordHours = (record) => {
-        // New hours-based system
         if (record.hours !== undefined) {
             return record.hours;
         }
-        // Old time-based system (backward compatibility)
         if (record.startTime && record.endTime) {
             const s = new Date(record.startTime);
             const e = new Date(record.endTime);
@@ -60,7 +57,6 @@ export default function ChildProfile({ params }) {
         return 0;
     };
 
-    // --- Analytics Data ---
     const getMonthlyData = () => {
         const now = new Date();
         const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -69,7 +65,7 @@ export default function ChildProfile({ params }) {
         history.forEach(item => {
             const itemDate = item.date ? new Date(item.date) : new Date(item.startTime);
             if (itemDate.getMonth() === now.getMonth() && itemDate.getFullYear() === now.getFullYear()) {
-                const day = itemDate.getDate() - 1; // 0-indexed
+                const day = itemDate.getDate() - 1;
                 data[day] += getRecordHours(item);
             }
         });
@@ -77,22 +73,17 @@ export default function ChildProfile({ params }) {
     };
 
     const monthlyData = getMonthlyData();
-
-    // Calculate dynamic max for chart scaling
     const maxHours = Math.max(...monthlyData, 0);
     const chartMax = maxHours > 0 ? maxHours + 2 : 12;
 
-    // --- Editing Handlers ---
     const startEdit = (item) => {
         setEditingId(item.id);
         if (item.hours !== undefined) {
-            // Hours-based record
             setEditForm({
                 hours: item.hours,
                 date: item.date
             });
         } else {
-            // Time-based record (legacy)
             const toLocal = (d) => new Date(d).toISOString().slice(0, 16);
             setEditForm({
                 start: toLocal(item.startTime),
@@ -104,7 +95,6 @@ export default function ChildProfile({ params }) {
     const saveEdit = async (originalItem) => {
         try {
             if (originalItem.hours !== undefined) {
-                // Update hours-based record
                 const hours = parseFloat(editForm.hours);
                 await fetch('/api/attendance', {
                     method: 'POST',
@@ -117,7 +107,6 @@ export default function ChildProfile({ params }) {
                     }),
                 });
             } else {
-                // Update time-based record (legacy)
                 const updated = {
                     ...originalItem,
                     childId: parseInt(id),
@@ -178,99 +167,95 @@ export default function ChildProfile({ params }) {
         }
     };
 
-    if (!child) return <div className="p-4">Loading child...</div>;
+    if (!child) {
+        return (
+            <main aria-busy="true">
+                <div className="card" style={{ height: '7rem', background: 'var(--surface-2)', border: 'none' }} />
+                <div className="card" style={{ height: '12rem', background: 'var(--surface-2)', border: 'none' }} />
+            </main>
+        );
+    }
+
+    const sum = nameHash(child.name);
 
     return (
         <main>
-            <header style={{ marginBottom: '2rem' }}>
-                <button
-                    onClick={() => router.back()}
-                    style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        color: 'var(--text-secondary)',
-                        textDecoration: 'none',
-                        marginBottom: '1rem',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: 0,
-                        font: 'inherit'
-                    }}
-                >
-                    <ArrowLeft size={20} style={{ marginRight: '0.5rem' }} /> Back
+            <header style={{ marginBottom: '1.75rem' }}>
+                <button onClick={() => router.back()} className="back-link">
+                    <ArrowLeft size={20} /> Back
                 </button>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <h1>{child.name}</h1>
-                        <p style={{ color: 'var(--text-secondary)' }}>£{child.rate}/hr</p>
+                <div className="row-between" style={{ alignItems: 'flex-start' }}>
+                    <div className="row" style={{ gap: '1rem' }}>
+                        <div className={`avatar avatar-lg blob-${sum % 4}`} aria-hidden="true">
+                            {EMOJI[sum % EMOJI.length]}
+                        </div>
+                        <div>
+                            <h1 style={{ marginBottom: '0.3rem' }}>{child.name}</h1>
+                            <span className="chip chip-sun">£{child.rate}/hr</span>
+                        </div>
                     </div>
-                    <div className="card" style={{ textAlign: 'center', padding: '1rem' }}>
-                        <span style={{ display: 'block', fontSize: '1.5rem', fontWeight: 700 }}>{totalHoursAllTime}</span>
-                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Total Hours</span>
+                    <div style={{ textAlign: 'center' }}>
+                        <span className="stat-number" style={{ display: 'block', fontSize: '1.9rem', color: 'var(--leaf-deep)' }}>
+                            {totalHoursAllTime}
+                        </span>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--ink-soft)' }}>total hours</span>
                     </div>
                 </div>
             </header>
 
-            {/* Analytics Chart */}
+            {/* Monthly chart */}
             <section className="card">
-                <h3>This Month</h3>
+                <h3>This month</h3>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {/* Y-axis labels */}
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '150px', paddingBottom: '5px', fontSize: '0.65rem', color: 'var(--text-secondary)', minWidth: '20px', textAlign: 'right', paddingRight: '0.25rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '150px', paddingBottom: '5px', fontSize: '0.7rem', color: 'var(--ink-soft)', minWidth: '24px', textAlign: 'right', paddingRight: '0.25rem' }}>
                         <span>{chartMax}h</span>
                         <span>{Math.round(chartMax * 0.66)}h</span>
                         <span>{Math.round(chartMax * 0.33)}h</span>
                         <span>0h</span>
                     </div>
-                    {/* Chart bars */}
-                    <div style={{ display: 'flex', alignItems: 'flex-end', height: '150px', gap: '4px', overflowX: 'auto', paddingBottom: '5px', flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', height: '150px', gap: '3px', overflowX: 'auto', paddingBottom: '5px', flex: 1 }}>
                         {monthlyData.map((val, idx) => {
-                            const height = (val / chartMax) * 100; // Dynamic scaling based on chartMax
+                            const height = (val / chartMax) * 100;
                             const isOvertime = val > 8;
                             return (
-                                                            <div key={idx} style={{ flex: 1, minWidth: '10px', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
-                                                                <div style={{
-                                                                    width: '100%',
-                                                                    height: `${height}%`,                                        background: isOvertime ? 'var(--primary-blue)' : 'var(--primary-green)',
-                                        borderRadius: '4px 4px 0 0',
-                                        minHeight: val > 0 ? '8px' : '0'
-                                    }} />
+                                <div key={idx} style={{ flex: 1, minWidth: '8px', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end' }}>
+                                    <div
+                                        title={`Day ${idx + 1}: ${val.toFixed(1)}h`}
+                                        style={{
+                                            width: '100%',
+                                            height: `${height}%`,
+                                            background: isOvertime ? 'var(--sky)' : 'var(--leaf)',
+                                            borderRadius: 'var(--r-pill)',
+                                            minHeight: val > 0 ? '8px' : '0',
+                                            transition: 'height var(--t-med) var(--ease-out)'
+                                        }}
+                                    />
                                 </div>
                             );
                         })}
                     </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-secondary)', marginLeft: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--ink-soft)', marginLeft: '28px' }}>
                     <span>1st</span>
                     <span>15th</span>
                     <span>End</span>
                 </div>
+                {maxHours > 8 && (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--ink-soft)', marginTop: '0.6rem' }}>
+                        <span style={{ display: 'inline-block', width: '0.7em', height: '0.7em', background: 'var(--sky)', borderRadius: '50%', marginRight: '0.35em' }} aria-hidden="true" />
+                        Days over 8 hours
+                    </p>
+                )}
             </section>
 
-            {/* History List */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h3 style={{ margin: 0 }}>Attendance History</h3>
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: '0.5rem 1rem',
-                        borderRadius: '0.5rem',
-                        border: '1px solid var(--primary-blue)',
-                        background: 'transparent',
-                        color: 'var(--primary-blue)',
-                        cursor: 'pointer',
-                        fontWeight: 500,
-                    }}
-                >
-                    <Plus size={18} />
-                    Add Record
+            {/* History */}
+            <div className="row-between" style={{ marginBottom: '1rem' }}>
+                <h3 style={{ margin: 0 }}>Attendance history</h3>
+                <button onClick={() => setIsModalOpen(true)} className="btn btn-soft" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem' }}>
+                    <Plus size={17} /> Add record
                 </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="stack" style={{ gap: '0.75rem' }}>
                 {history.map((item) => {
                     const isEditing = editingId === item.id;
                     const hours = getRecordHours(item);
@@ -279,20 +264,19 @@ export default function ChildProfile({ params }) {
                         : new Date(item.startTime).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
                     return (
-                        <div key={item.id} className="card" style={{ marginBottom: 0, padding: '1rem' }}>
+                        <div key={item.id} className="card" style={{ marginBottom: 0, padding: '1rem 1.25rem' }}>
                             {isEditing ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div className="stack" style={{ gap: '0.5rem' }}>
                                     {item.hours !== undefined ? (
-                                        // Hours-based edit
                                         <>
-                                            <label style={{ fontSize: '0.875rem' }}>Date</label>
+                                            <label>Date</label>
                                             <input
                                                 type="date"
                                                 value={editForm.date}
                                                 onChange={e => setEditForm({ ...editForm, date: e.target.value })}
-                                                style={{ padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+                                                style={{ marginBottom: 0 }}
                                             />
-                                            <label style={{ fontSize: '0.875rem' }}>Hours</label>
+                                            <label>Hours</label>
                                             <input
                                                 type="number"
                                                 step="0.5"
@@ -300,53 +284,56 @@ export default function ChildProfile({ params }) {
                                                 max="24"
                                                 value={editForm.hours}
                                                 onChange={e => setEditForm({ ...editForm, hours: parseFloat(e.target.value) || 0 })}
-                                                style={{ padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+                                                style={{ marginBottom: 0 }}
                                             />
                                         </>
                                     ) : (
-                                        // Time-based edit (legacy)
                                         <>
-                                            <label style={{ fontSize: '0.875rem' }}>Start</label>
+                                            <label>Start</label>
                                             <input
                                                 type="datetime-local"
                                                 value={editForm.start}
                                                 onChange={e => setEditForm({ ...editForm, start: e.target.value })}
-                                                style={{ padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+                                                style={{ marginBottom: 0 }}
                                             />
-                                            <label style={{ fontSize: '0.875rem' }}>End</label>
+                                            <label>End</label>
                                             <input
                                                 type="datetime-local"
                                                 value={editForm.end}
                                                 onChange={e => setEditForm({ ...editForm, end: e.target.value })}
-                                                style={{ padding: '0.5rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}
+                                                style={{ marginBottom: 0 }}
                                             />
                                         </>
                                     )}
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                        <button onClick={() => saveEdit(item)} style={{ flex: 1, padding: '0.5rem', borderRadius: '0.5rem', border: 'none', cursor: 'pointer', background: 'var(--primary-green)', color: 'white', fontWeight: 500 }}>Save</button>
-                                        <button onClick={() => setEditingId(null)} style={{ flex: 1, padding: '0.5rem', background: 'var(--border-color)', borderRadius: '0.5rem', border: 'none', cursor: 'pointer', color: 'var(--text-color)' }}>Cancel</button>
+                                    <div className="row" style={{ marginTop: '0.5rem' }}>
+                                        <button onClick={() => saveEdit(item)} className="btn btn-primary" style={{ flex: 1 }}>Save</button>
+                                        <button onClick={() => setEditingId(null)} className="btn btn-outline" style={{ flex: 1 }}>Cancel</button>
                                     </div>
                                 </div>
                             ) : (
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div className="row-between">
                                     <div>
-                                        <h4 style={{ marginBottom: '0.25rem' }}>{dateStr}</h4>
-                                        <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                        <h4 style={{ marginBottom: '0.2rem' }}>{dateStr}</h4>
+                                        <div style={{ fontSize: '0.875rem', color: 'var(--ink-soft)' }}>
                                             {item.hours !== undefined ? (
                                                 `${item.hours} hours`
                                             ) : (
                                                 <>
-                                                    {new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -
+                                                    {new Date(item.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} –{' '}
                                                     {new Date(item.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </>
                                             )}
                                         </div>
                                     </div>
                                     <div style={{ textAlign: 'right' }}>
-                                        <div style={{ fontWeight: 600, fontSize: '1.25rem', marginBottom: '0.25rem' }}>{hours.toFixed(1)}h</div>
-                                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                                            <button onClick={() => startEdit(item)} style={{ color: 'var(--text-secondary)', padding: '0.25rem', background: 'transparent', border: 'none', cursor: 'pointer' }}><Edit2 size={18} /></button>
-                                            <button onClick={() => handleDelete(item.id)} style={{ color: '#ef4444', padding: '0.25rem', background: 'transparent', border: 'none', cursor: 'pointer' }}><Trash size={18} /></button>
+                                        <div className="stat-number" style={{ fontSize: '1.3rem', marginBottom: '0.3rem' }}>{hours.toFixed(1)}h</div>
+                                        <div className="row" style={{ gap: '0.3rem', justifyContent: 'flex-end' }}>
+                                            <button onClick={() => startEdit(item)} className="btn btn-ghost btn-icon" style={{ width: '38px', height: '38px' }} aria-label={`Edit record for ${dateStr}`}>
+                                                <Edit2 size={17} />
+                                            </button>
+                                            <button onClick={() => handleDelete(item.id)} className="btn btn-danger-soft btn-icon" style={{ width: '38px', height: '38px' }} aria-label={`Delete record for ${dateStr}`}>
+                                                <Trash size={17} />
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -354,10 +341,14 @@ export default function ChildProfile({ params }) {
                         </div>
                     )
                 })}
-                {history.length === 0 && <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>No history found.</p>}
+                {history.length === 0 && (
+                    <div className="card empty-state" style={{ marginBottom: 0 }}>
+                        <span className="empty-emoji" aria-hidden="true">📅</span>
+                        <p style={{ margin: '0 auto' }}>No hours logged yet — they&apos;ll appear here once you log a day.</p>
+                    </div>
+                )}
             </div>
 
-            {/* Manual Entry Modal */}
             <ManualEntryModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

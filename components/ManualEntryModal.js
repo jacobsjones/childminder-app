@@ -13,7 +13,6 @@ export default function ManualEntryModal({ isOpen, onClose, onSave, existingDate
     if (!isOpen) return null;
 
     const handleSave = () => {
-        // Check if date already has a record
         const isDuplicate = existingDates.includes(date);
 
         if (isDuplicate) {
@@ -23,7 +22,6 @@ export default function ManualEntryModal({ isOpen, onClose, onSave, existingDate
 
         onSave({ date, hours: parseFloat(hours) });
 
-        // Reset form
         setDate(yesterdayStr);
         setHours(0);
         onClose();
@@ -33,162 +31,64 @@ export default function ManualEntryModal({ isOpen, onClose, onSave, existingDate
     const decrement = () => setHours(prev => Math.max(0, Math.round((parseFloat(prev) - 0.5) * 2) / 2));
 
     return (
-        <div
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 1000,
-                padding: '1rem',
-            }}
-            onClick={onClose}
-        >
-            <div
-                className="card"
-                style={{
-                    maxWidth: '400px',
-                    width: '100%',
-                    padding: '1.5rem',
-                    position: 'relative',
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0 }}>Add Past Attendance</h3>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            background: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            padding: '0.25rem',
-                            color: 'var(--text-secondary)',
-                        }}
-                    >
-                        <X size={20} />
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add past attendance">
+                <div className="row-between" style={{ marginBottom: '1.5rem' }}>
+                    <h3 style={{ margin: 0 }}>Add a past day</h3>
+                    <button onClick={onClose} className="btn btn-ghost btn-icon" style={{ width: '36px', height: '36px' }} aria-label="Close">
+                        <X size={19} />
                     </button>
                 </div>
 
-                {/* Date Picker */}
-                <div style={{ marginBottom: '1rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>
-                        Date
-                    </label>
-                    <input
-                        type="date"
-                        value={date}
-                        onChange={(e) => setDate(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-color)',
-                            background: 'var(--bg-color)',
-                            color: 'var(--text-color)',
-                            fontSize: '1rem',
-                        }}
-                    />
-                </div>
+                <label htmlFor="manual-date">Date</label>
+                <input
+                    id="manual-date"
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                />
 
-                {/* Hours Input with Stepper */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.5rem' }}>
-                        Hours
-                    </label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <button
-                            onClick={decrement}
-                            style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '0.5rem',
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--bg-color)',
-                                cursor: 'pointer',
-                                fontSize: '1.5rem',
-                                fontWeight: 600,
-                                color: 'var(--text-color)',
-                            }}
-                        >
-                            −
-                        </button>
-                        <input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            max="24"
-                            value={hours}
-                            onChange={(e) => setHours(Math.max(0, parseFloat(e.target.value) || 0))}
-                            style={{
-                                flex: 1,
-                                padding: '0.75rem',
-                                borderRadius: '0.5rem',
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--bg-color)',
-                                color: 'var(--text-color)',
-                                fontSize: '1.25rem',
-                                fontWeight: 600,
-                                textAlign: 'center',
-                            }}
-                        />
-                        <button
-                            onClick={increment}
-                            style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '0.5rem',
-                                border: '1px solid var(--border-color)',
-                                background: 'var(--bg-color)',
-                                cursor: 'pointer',
-                                fontSize: '1.5rem',
-                                fontWeight: 600,
-                                color: 'var(--text-color)',
-                            }}
-                        >
-                            +
-                        </button>
-                    </div>
-                </div>
-
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <label htmlFor="manual-hours">Hours</label>
+                <div className="row" style={{ gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <button
-                        onClick={onClose}
-                        style={{
-                            flex: 1,
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            border: '1px solid var(--border-color)',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                            color: 'var(--text-color)',
-                        }}
+                        onClick={decrement}
+                        className="stepper-btn stepper-minus"
+                        style={{ width: '44px', height: '44px', fontSize: '1.4rem' }}
+                        aria-label="Half an hour less"
                     >
+                        −
+                    </button>
+                    <input
+                        id="manual-hours"
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        max="24"
+                        value={hours}
+                        onChange={(e) => setHours(Math.max(0, parseFloat(e.target.value) || 0))}
+                        style={{ flex: 1, textAlign: 'center', fontWeight: 600, fontSize: '1.2rem', marginBottom: 0 }}
+                    />
+                    <button
+                        onClick={increment}
+                        className="stepper-btn stepper-plus"
+                        style={{ width: '44px', height: '44px', fontSize: '1.4rem' }}
+                        aria-label="Half an hour more"
+                    >
+                        +
+                    </button>
+                </div>
+
+                <div className="row">
+                    <button onClick={onClose} className="btn btn-outline" style={{ flex: 1 }}>
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={!date || hours <= 0}
-                        style={{
-                            flex: 1,
-                            padding: '0.75rem',
-                            borderRadius: '0.5rem',
-                            border: 'none',
-                            background: date && hours > 0 ? 'var(--primary-blue)' : 'var(--border-color)',
-                            color: 'white',
-                            cursor: date && hours > 0 ? 'pointer' : 'not-allowed',
-                            fontWeight: 500,
-                        }}
+                        className="btn btn-primary"
+                        style={{ flex: 1 }}
                     >
-                        Save Record
+                        Save record
                     </button>
                 </div>
             </div>

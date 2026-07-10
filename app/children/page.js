@@ -2,7 +2,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronRight } from 'lucide-react';
+
+const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
+const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
 export default function ChildrenPage() {
     const [children, setChildren] = useState([]);
@@ -31,7 +34,7 @@ export default function ChildrenPage() {
 
         if (name) {
             try {
-                const newChild = { name, rate: 0 }; // Default, can edit details later
+                const newChild = { name, rate: 0 };
                 const response = await fetch('/api/children', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -41,7 +44,6 @@ export default function ChildrenPage() {
                 if (response.ok) {
                     const created = await response.json();
                     setIsAdding(false);
-                    // Redirect to edit page immediately
                     if (created.id) {
                         router.push(`/children/edit/${created.id}`);
                     }
@@ -54,57 +56,69 @@ export default function ChildrenPage() {
 
     return (
         <main>
-            <header style={{ marginBottom: '2rem' }}>
-                <h1>Manage Children</h1>
-                <p style={{ color: 'var(--text-secondary)' }}>Tap a child to edit their profile & schedule.</p>
+            <header style={{ marginBottom: '1.75rem' }}>
+                <h1 style={{ marginBottom: '0.25rem' }}>Children</h1>
+                <p className="page-sub">Tap a child to edit their profile and schedule.</p>
             </header>
 
-            {/* List */}
-            <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-                {children.map((child) => (
-                    <Link href={`/children/edit/${child.id}`} key={child.id} style={{ textDecoration: 'none', color: 'inherit' }}>
-                        <div className="card" style={{ marginBottom: 0, transition: 'transform 0.1s' }} onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{
-                                    width: '3rem', height: '3rem', borderRadius: '50%', background: 'var(--bg-color)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 700
-                                }}>
-                                    {child.name.charAt(0)}
-                                </div>
-                                <div>
-                                    <h3 style={{ marginBottom: '0.25rem' }}>{child.name}</h3>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                        {child.schedule?.enabled ? (
-                                            <span style={{ color: 'var(--primary-green-text)', background: 'var(--primary-green)', padding: '0.1rem 0.4rem', borderRadius: '0.2rem' }}>Fixed Schedule</span>
-                                        ) : (
-                                            'Pay-as-you-go'
-                                        )}
+            {children.length === 0 && !isAdding && (
+                <section className="card empty-state">
+                    <span className="empty-emoji" aria-hidden="true">🧸</span>
+                    <h2 style={{ color: 'var(--ink)' }}>Nobody here yet</h2>
+                    <p style={{ margin: '0 auto 0.5rem' }}>Add each child you look after — their rate, schedule and parent email live here.</p>
+                </section>
+            )}
+
+            <div className="stack">
+                {children.map((child) => {
+                    const sum = nameHash(child.name);
+                    return (
+                        <Link href={`/children/edit/${child.id}`} key={child.id} style={{ textDecoration: 'none', color: 'inherit' }}>
+                            <div className="card card-tap row-between" style={{ marginBottom: 0 }}>
+                                <div className="row">
+                                    <div className={`avatar blob-${sum % 4}`} aria-hidden="true">
+                                        {EMOJI[sum % EMOJI.length]}
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0 }}>{child.name}</h3>
+                                        <div style={{ marginTop: '0.3rem' }}>
+                                            {child.schedule?.enabled ? (
+                                                <span className="chip chip-sky">Fixed schedule</span>
+                                            ) : (
+                                                <span className="chip chip-plain">Pay as you go</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
+                                <ChevronRight size={20} color="var(--ink-soft)" aria-hidden="true" />
                             </div>
-                        </div>
-                    </Link>
-                ))}
+                        </Link>
+                    );
+                })}
             </div>
 
-            {/* Add New Button/Form */}
-            <div style={{ marginTop: '2rem' }}>
+            <div style={{ marginTop: '1.5rem' }}>
                 {!isAdding ? (
                     <button
                         onClick={() => setIsAdding(true)}
-                        className="btn-large bg-blue"
-                        style={{ width: '100%' }}
+                        className="btn btn-primary btn-lg"
                     >
-                        <Plus /> Add New Child
+                        <Plus size={20} /> Add a child
                     </button>
                 ) : (
                     <div className="card">
                         <form onSubmit={handleCreate}>
-                            <h3>Add New Child</h3>
-                            <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                                <input name="name" placeholder="Child's Name" required style={{ flex: 1 }} autoFocus />
-                                <button type="submit" className="bg-blue" style={{ borderRadius: '0.5rem', padding: '0 1.5rem', fontWeight: 600 }}>Create</button>
-                                <button type="button" onClick={() => setIsAdding(false)} style={{ background: 'transparent', color: 'var(--text-secondary)' }}>Cancel</button>
+                            <h3>New child</h3>
+                            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                                <input
+                                    name="name"
+                                    placeholder="Child's name"
+                                    required
+                                    autoFocus
+                                    style={{ flex: '1 1 180px', marginBottom: 0 }}
+                                />
+                                <button type="submit" className="btn btn-primary">Create</button>
+                                <button type="button" onClick={() => setIsAdding(false)} className="btn btn-ghost">Cancel</button>
                             </div>
                         </form>
                     </div>

@@ -1,8 +1,13 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { LayoutGrid, List, Calendar, XCircle, Clock } from 'lucide-react';
+import Link from 'next/link';
+import { LayoutGrid, List, XCircle, Clock, Plus } from 'lucide-react';
 import HoursLogModal from '@/components/HoursLogModal';
+
+const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
+
+const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
 export default function Dashboard() {
     const [children, setChildren] = useState([]);
@@ -18,15 +23,12 @@ export default function Dashboard() {
 
             const data = await response.json();
 
-            // Enrich with icons
             const enrichedChildren = (data.children || []).map((c) => {
-                const sum = c.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                const icons = ['🐻', '☀️', '⭐'];
-                const icon = icons[sum % icons.length];
-
+                const sum = nameHash(c.name);
                 return {
                     ...c,
-                    icon
+                    icon: EMOJI[sum % EMOJI.length],
+                    blob: `blob-${sum % 4}`,
                 };
             });
 
@@ -41,7 +43,6 @@ export default function Dashboard() {
     useEffect(() => {
         loadData();
 
-        // Listen for AI assistant updates
         const handleReload = () => {
             console.log('[Dashboard] Reloading data after AI action...');
             loadData();
@@ -55,7 +56,6 @@ export default function Dashboard() {
     }, [loadData]);
 
     const handleLogHours = async (childId, childName) => {
-        // Get today's hours from child data already loaded
         const child = children.find(c => c.id === childId);
         const todayHours = child?.todayRecord?.hours || 0;
 
@@ -105,9 +105,6 @@ export default function Dashboard() {
         }
     };
 
-    if (loading) return <div>Loading...</div>;
-
-    // Get child status based on loaded dashboard data
     const getChildStatus = (childId) => {
         const child = children.find(c => c.id === childId);
         const record = child?.todayRecord;
@@ -123,25 +120,37 @@ export default function Dashboard() {
         return { hasHours: false, hours: 0, isAuto: false, record: null };
     };
 
+    const loggedTodayCount = children.filter(c => c.todayRecord).length;
+    const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+
     return (
         <main>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                <div>
-                    <h1>Hey Sue! ☀️</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>
-                        Dashboard is now cloud-powered.
-                    </p>
-                </div>
+            <header style={{ marginBottom: '1.75rem' }}>
+                <h1 style={{ marginBottom: '0.25rem' }}>Hey Sue! ☀️</h1>
+                <p className="page-sub">
+                    {today}
+                    {!loading && children.length > 0 && (
+                        <> · {loggedTodayCount === 0
+                            ? 'no hours logged yet'
+                            : `${loggedTodayCount} little ${loggedTodayCount === 1 ? 'one' : 'ones'} logged today`}
+                        </>
+                    )}
+                </p>
             </header>
 
-            <DashboardList
-                childrenData={children}
-                getChildStatus={getChildStatus}
-                onLogHours={handleLogHours}
-                onDeleteRecord={handleDeleteRecord}
-            />
+            {loading ? (
+                <DashboardSkeleton />
+            ) : (
+                <DashboardList
+                    childrenData={children}
+                    getChildStatus={getChildStatus}
+                    onLogHours={handleLogHours}
+                    onDeleteRecord={handleDeleteRecord}
+                />
+            )}
 
             <HoursLogModal
+                key={`${modalState.childId}-${modalState.isOpen}`}
                 isOpen={modalState.isOpen}
                 onClose={() => setModalState({ ...modalState, isOpen: false })}
                 childName={modalState.childName}
@@ -152,12 +161,29 @@ export default function Dashboard() {
     );
 }
 
+function DashboardSkeleton() {
+    return (
+        <section className="card" aria-busy="true" aria-label="Loading children">
+            <div className="stack">
+                {[0, 1, 2].map(i => (
+                    <div key={i} className="row" style={{ padding: '0.75rem 0' }}>
+                        <div className="avatar" style={{ background: 'var(--surface-2)', borderRadius: '50%' }} />
+                        <div style={{ flex: 1 }}>
+                            <div style={{ height: '0.9rem', width: '40%', background: 'var(--surface-2)', borderRadius: 'var(--r-pill)', marginBottom: '0.5rem' }} />
+                            <div style={{ height: '0.7rem', width: '25%', background: 'var(--surface-2)', borderRadius: 'var(--r-pill)' }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
 function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecord }) {
     const [viewMode, setViewMode] = useState('list');
     const router = useRouter();
 
     useEffect(() => {
-        // Load view preference
         const savedView = localStorage.getItem('dashboard_view_mode');
         if (savedView) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -177,188 +203,145 @@ function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecor
             todayStatus: status
         };
     }).sort((a, b) => {
-        // Sort: logged today first, then by name
         if (a.todayStatus.hasHours && !b.todayStatus.hasHours) return -1;
         if (!a.todayStatus.hasHours && b.todayStatus.hasHours) return 1;
         return a.name.localeCompare(b.name);
     });
 
     const handleCardClick = (e, childId) => {
-        // Prevent navigation if button was clicked
         if (e.target.closest('button')) return;
         router.push(`/children/${childId}`);
     };
 
+    if (childrenData.length === 0) {
+        return (
+            <section className="card empty-state">
+                <span className="empty-emoji" aria-hidden="true">🌱</span>
+                <h2 style={{ color: 'var(--ink)' }}>No little ones yet</h2>
+                <p style={{ margin: '0 auto 1.25rem' }}>Add your first child and their hours will show up here each day.</p>
+                <Link href="/children" className="btn btn-primary">
+                    <Plus size={18} /> Add a child
+                </Link>
+            </section>
+        );
+    }
+
     return (
         <section className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <h2>Children</h2>
-                <div style={{ display: 'flex', gap: '0.5rem', background: 'var(--bg-color)', padding: '0.25rem', borderRadius: '0.5rem' }}>
+            <div className="row-between" style={{ marginBottom: '1rem' }}>
+                <h2 style={{ margin: 0 }}>Today</h2>
+                <div className="seg seg-icon" role="group" aria-label="View mode">
                     <button
                         onClick={() => handleSetViewMode('list')}
-                        style={{ padding: '0.4rem', borderRadius: '0.3rem', background: viewMode === 'list' ? 'var(--bg-card)' : 'transparent', boxShadow: viewMode === 'list' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none' }}
+                        className={`seg-btn ${viewMode === 'list' ? 'active' : ''}`}
+                        aria-label="List view"
+                        aria-pressed={viewMode === 'list'}
                     >
-                        <List size={20} color="var(--text-color)" />
+                        <List size={18} />
                     </button>
                     <button
                         onClick={() => handleSetViewMode('grid')}
-                        style={{ padding: '0.4rem', borderRadius: '0.3rem', background: viewMode === 'grid' ? 'var(--bg-card)' : 'transparent', boxShadow: viewMode === 'grid' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none' }}
+                        className={`seg-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                        aria-label="Grid view"
+                        aria-pressed={viewMode === 'grid'}
                     >
-                        <LayoutGrid size={20} color="var(--text-color)" />
+                        <LayoutGrid size={18} />
                     </button>
                 </div>
             </div>
 
-            {childrenData.length === 0 ? (
-                <p className="status-inactive">No children added yet.</p>
-            ) : (
-                <div style={viewMode === 'grid' ? { 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(2, 1fr)', 
-                    gap: '0.75rem',
-                    width: '100%'
-                } : { display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sortedData.map((child) => (
+            <div style={viewMode === 'grid' ? {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '0.75rem',
+                width: '100%'
+            } : { display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {sortedData.map((child) => {
+                    const done = child.todayStatus.hasHours;
+                    const isGrid = viewMode === 'grid';
+
+                    return (
                         <div
                             key={child.id}
                             onClick={(e) => handleCardClick(e, child.id)}
+                            className="card-tap"
                             style={{
-                                cursor: 'pointer',
-                                background: viewMode === 'grid' ? 'var(--bg-color)' : 'transparent',
-                                border: viewMode === 'grid' ? 'none' : '1px solid var(--border-color)',
-                                borderRadius: '1rem',
-                                padding: viewMode === 'grid' ? '0.75rem 0.5rem' : '1rem',
+                                background: isGrid ? 'var(--surface-2)' : 'transparent',
+                                border: isGrid ? 'none' : '1px solid var(--line)',
+                                borderRadius: 'var(--r-lg)',
+                                padding: isGrid ? '1rem 0.75rem' : '0.9rem 1rem',
                                 display: 'flex',
-                                flexDirection: viewMode === 'grid' ? 'column' : 'row',
+                                flexDirection: isGrid ? 'column' : 'row',
                                 alignItems: 'center',
-                                justifyContent: viewMode === 'grid' ? 'center' : 'flex-start',
-                                gap: viewMode === 'grid' ? '0.25rem' : '1rem',
-                                textAlign: viewMode === 'grid' ? 'center' : 'left',
-                                transition: 'transform 0.1s',
+                                gap: isGrid ? '0.5rem' : '0.9rem',
+                                textAlign: isGrid ? 'center' : 'left',
                                 width: '100%',
                                 minWidth: 0,
-                                aspectRatio: viewMode === 'grid' ? '1 / 1' : 'auto',
                                 overflow: 'hidden'
                             }}
-                            className={viewMode === 'grid' ? '' : 'list-item'}
                         >
-                            {/* Icon */}
-                            <div style={{ position: 'relative', flexShrink: 0 }}>
-                                <div style={{
-                                    width: viewMode === 'grid' ? '2.75rem' : '3.5rem',
-                                    height: viewMode === 'grid' ? '2.75rem' : '3.5rem',
-                                    background: 'var(--bg-card)',
-                                    borderRadius: '50%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: viewMode === 'grid' ? '1.5rem' : '2rem',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                                    border: '1px solid var(--border-color)',
-                                    flexShrink: 0
-                                }}>
-                                    {child.icon}
-                                </div>
-                                {child.schedule?.enabled && (
-                                    <div style={{ position: 'absolute', bottom: -5, right: -5, background: 'var(--bg-card)', borderRadius: '50%', padding: 2, boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
-                                        <Calendar size={12} color="var(--primary-blue-text)" />
-                                    </div>
-                                )}
+                            <div className={`avatar ${child.blob}`} aria-hidden="true">
+                                {child.icon}
                             </div>
 
-                            {/* Info */}
-                            <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
-                                <h3 style={{ marginBottom: '0.1rem', fontSize: viewMode === 'grid' ? '0.9rem' : '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.name}</h3>
-                                <div style={{ fontSize: viewMode === 'grid' ? '0.7rem' : '0.85rem', color: 'var(--text-secondary)' }}>
-                                    {child.todayStatus.hasHours ? (
-                                        <span style={{ color: 'var(--primary-green)', fontWeight: 600 }}>
-                                            {child.todayStatus.hours}h today
-                                        </span>
+                            <div style={{ flex: isGrid ? 'none' : 1, minWidth: 0, width: isGrid ? '100%' : 'auto' }}>
+                                <h3 style={{ margin: 0, fontSize: isGrid ? '1rem' : '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {child.name}
+                                </h3>
+                                <div style={{ marginTop: '0.25rem' }}>
+                                    {done ? (
+                                        <span className="chip chip-leaf">✓ {child.todayStatus.hours}h today</span>
                                     ) : (
-                                        <span>{child.totalHours.toFixed(1)}h total</span>
+                                        <span style={{ fontSize: '0.85rem', color: 'var(--ink-soft)' }}>
+                                            {child.totalHours.toFixed(1)}h total
+                                        </span>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Action Button */}
-                            <div style={{ display: 'flex', gap: '0.4rem', flexDirection: viewMode === 'grid' ? 'column' : 'row', width: viewMode === 'grid' ? '100%' : 'auto', justifyContent: 'center', flexShrink: 0 }}>
-                                {child.todayStatus.hasHours ? (
+                            <div className="row" style={{ gap: '0.4rem', width: isGrid ? '100%' : 'auto', justifyContent: 'center', flexShrink: 0 }}>
+                                {done ? (
                                     <>
                                         <button
                                             onClick={() => onLogHours(child.id, child.name)}
-                                            style={{
-                                                padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem',
-                                                borderRadius: viewMode === 'grid' ? '9999px' : '50%',
-                                                fontWeight: 600,
-                                                fontSize: '0.75rem',
-                                                background: 'transparent',
-                                                color: 'var(--primary-blue-text)',
-                                                border: `2px solid var(--primary-blue)`,
-                                                whiteSpace: 'nowrap',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '0.3rem',
-                                                justifyContent: 'center',
-                                                aspectRatio: viewMode === 'grid' ? 'auto' : '1/1'
-                                            }}
-                                            title="Edit Hours"
+                                            className={`btn btn-sky ${isGrid ? '' : 'btn-icon'}`}
+                                            style={isGrid ? { flex: 1, padding: '0.5rem 0.75rem', fontSize: '0.85rem' } : {}}
+                                            title="Edit hours"
+                                            aria-label={`Edit hours for ${child.name}`}
                                         >
-                                            <Clock size={viewMode === 'grid' ? 14 : 20} />
-                                            {viewMode === 'grid' && 'Edit'}
+                                            <Clock size={isGrid ? 15 : 19} />
+                                            {isGrid && 'Edit'}
                                         </button>
                                         {child.todayStatus.isAuto && (
                                             <button
                                                 onClick={() => onDeleteRecord(child.todayStatus.record.id)}
-                                                style={{
-                                                    padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem',
-                                                    background: 'transparent',
-                                                    borderRadius: viewMode === 'grid' ? '0.5rem' : '50%',
-                                                    color: '#dc2626',
-                                                    border: '2px solid #dc2626',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.75rem',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    whiteSpace: 'nowrap',
-                                                    aspectRatio: viewMode === 'grid' ? 'auto' : '1/1'
-                                                }}
-                                                title="Mark Absent"
+                                                className={`btn btn-danger-soft ${isGrid ? '' : 'btn-icon'}`}
+                                                style={isGrid ? { flex: 1, padding: '0.5rem 0.75rem', fontSize: '0.85rem' } : {}}
+                                                title="Mark absent"
+                                                aria-label={`Mark ${child.name} absent`}
                                             >
-                                                <XCircle size={viewMode === 'grid' ? 14 : 20} />
-                                                {viewMode === 'grid' && 'Abs'}
+                                                <XCircle size={isGrid ? 15 : 19} />
+                                                {isGrid && 'Absent'}
                                             </button>
                                         )}
                                     </>
                                 ) : (
                                     <button
                                         onClick={() => onLogHours(child.id, child.name)}
-                                        style={{
-                                            padding: viewMode === 'grid' ? '0.4rem 0.5rem' : '0.6rem',
-                                            borderRadius: viewMode === 'grid' ? '9999px' : '50%',
-                                            fontWeight: 600,
-                                            fontSize: '0.75rem',
-                                            background: 'var(--primary-blue)',
-                                            color: 'white',
-                                            border: `2px solid var(--primary-blue)`,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.3rem',
-                                            justifyContent: 'center',
-                                            aspectRatio: viewMode === 'grid' ? 'auto' : '1/1',
-                                            width: viewMode === 'grid' ? '100%' : 'auto'
-                                        }}
-                                        title="Log Hours"
+                                        className={`btn btn-primary wiggle-on-hover ${isGrid ? '' : 'btn-icon'}`}
+                                        style={isGrid ? { width: '100%', padding: '0.5rem 0.75rem', fontSize: '0.85rem' } : {}}
+                                        title="Log hours"
+                                        aria-label={`Log hours for ${child.name}`}
                                     >
-                                        <Clock size={viewMode === 'grid' ? 14 : 20} />
-                                        {viewMode === 'grid' && 'Log Hours'}
+                                        <Clock size={isGrid ? 15 : 19} />
+                                        {isGrid && 'Log hours'}
                                     </button>
                                 )}
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+                    );
+                })}
+            </div>
         </section>
     );
 }
