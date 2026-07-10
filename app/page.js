@@ -111,8 +111,8 @@ export default function Dashboard() {
     const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
     return (
-        <main>
-            <header className="row" style={{ gap: '1rem', marginBottom: '0.75rem' }}>
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            <header className="row" style={{ gap: '1rem', marginBottom: '0.5rem' }}>
                 <div className="sun-blob" aria-hidden="true">☀️</div>
                 <div>
                     <h1 style={{ marginBottom: '0.15rem' }}>Hey Sue!</h1>
@@ -128,17 +128,25 @@ export default function Dashboard() {
                 </div>
             </header>
 
-            {loading ? (
-                <GardenSkeleton />
-            ) : children.length === 0 ? (
-                <EmptyGarden />
-            ) : (
-                <Garden
-                    childrenData={children}
-                    onLogHours={handleLogHours}
-                    onDeleteRecord={handleDeleteRecord}
-                />
-            )}
+            <Sky />
+
+            <section style={{ marginTop: 'auto' }}>
+                {loading ? (
+                    <GardenDock>
+                        <GardenSkeletonStrip />
+                    </GardenDock>
+                ) : children.length === 0 ? (
+                    <GardenDock>
+                        <EmptyGardenStrip />
+                    </GardenDock>
+                ) : (
+                    <Garden
+                        childrenData={children}
+                        onLogHours={handleLogHours}
+                        onDeleteRecord={handleDeleteRecord}
+                    />
+                )}
+            </section>
 
             <HoursLogModal
                 key={`${modalState.childId}-${modalState.isOpen}`}
@@ -152,25 +160,39 @@ export default function Dashboard() {
     );
 }
 
-function Hills() {
+function Sky() {
     return (
-        <svg className="hills" aria-hidden="true">
-            <defs>
-                <pattern id="garden-hills" width="300" height="115" patternUnits="userSpaceOnUse">
-                    <path className="hill-back" d="M0,48 C50,30 95,64 150,44 C205,26 255,62 300,48 L300,115 L0,115 Z" />
-                    <path className="hill-front" d="M0,86 C80,64 200,102 300,86 L300,115 L0,115 Z" />
-                </pattern>
-            </defs>
-            <rect x="0" y="0" width="100%" height="115" fill="url(#garden-hills)" />
-        </svg>
+        <div className="sky" aria-hidden="true">
+            <div className="cloud" style={{ top: '12%', left: '8%', width: '72px', animationDuration: '7s' }} />
+            <div className="cloud" style={{ top: '48%', left: '58%', width: '96px', animationDuration: '11s' }} />
+            <div className="cloud" style={{ top: '20%', left: '78%', width: '58px', animationDuration: '9s' }} />
+        </div>
     );
 }
 
-function GardenSkeleton() {
+function GardenDock({ children }) {
+    return (
+        <div className="garden-dock">
+            <div className="hills-bg">
+                <svg aria-hidden="true">
+                    <defs>
+                        <pattern id="garden-hills" width="300" height="115" patternUnits="userSpaceOnUse">
+                            <path className="hill-back" d="M0,48 C50,30 95,64 150,44 C205,26 255,62 300,48 L300,115 L0,115 Z" />
+                            <path className="hill-front" d="M0,86 C80,64 200,102 300,86 L300,115 L0,115 Z" />
+                        </pattern>
+                    </defs>
+                    <rect x="0" y="0" width="100%" height="115" fill="url(#garden-hills)" />
+                </svg>
+            </div>
+            {children}
+        </div>
+    );
+}
+
+function GardenSkeletonStrip() {
     return (
         <div className="garden-scroll" aria-busy="true" aria-label="Loading the garden">
             <div className="garden-strip">
-                <Hills />
                 {[0, 1, 2].map((i) => (
                     <div key={i} className="sprout-slot" style={{ paddingBottom: `${STAGGER[i]}px` }}>
                         <div className={`sprout-blob dormant shape-${i}`} style={{ borderStyle: 'solid', borderColor: 'var(--line)' }} />
@@ -182,11 +204,10 @@ function GardenSkeleton() {
     );
 }
 
-function EmptyGarden() {
+function EmptyGardenStrip() {
     return (
         <div className="garden-scroll">
             <div className="garden-strip">
-                <Hills />
                 <div className="sprout-slot" style={{ paddingBottom: '52px' }}>
                     <Link
                         href="/children"
@@ -220,7 +241,7 @@ function Garden({ childrenData, onLogHours, onDeleteRecord }) {
     };
 
     return (
-        <div>
+        <>
             {canScroll && (
                 <div className="row-between" style={{ marginBottom: '0.25rem' }}>
                     <span className="sprout-meta" aria-hidden="true">Swipe to wander the garden →</span>
@@ -235,76 +256,77 @@ function Garden({ childrenData, onLogHours, onDeleteRecord }) {
                 </div>
             )}
 
-            <div className="garden-scroll" ref={scrollRef}>
-                <div className="garden-strip">
-                    <Hills />
-                    {sorted.map((child, i) => {
-                        const record = child.todayRecord;
-                        const grown = !!record;
-                        const isAuto = grown && record.isAuto;
+            <GardenDock>
+                <div className="garden-scroll" ref={scrollRef}>
+                    <div className="garden-strip">
+                        {sorted.map((child, i) => {
+                            const record = child.todayRecord;
+                            const grown = !!record;
+                            const isAuto = grown && record.isAuto;
 
-                        return (
-                            <div
-                                key={child.id}
-                                className="sprout-slot"
-                                style={{ paddingBottom: `${STAGGER[i % STAGGER.length]}px` }}
-                            >
-                                <div className="sprout-chips">
-                                    {grown ? (
-                                        <>
-                                            <button
-                                                className={`chip chip-btn ${isAuto ? 'chip-sky' : 'chip-leaf'}`}
-                                                onClick={() => onLogHours(child.id, child.name)}
-                                                title="Edit today's hours"
-                                                aria-label={`Edit today's hours for ${child.name} — currently ${record.hours} hours`}
-                                            >
-                                                {record.hours}h {isAuto ? 'auto' : '✓'}
-                                            </button>
-                                            {isAuto && (
-                                                <button
-                                                    className="chip chip-btn chip-berry"
-                                                    onClick={() => onDeleteRecord(record.id)}
-                                                    title="Mark absent"
-                                                    aria-label={`Mark ${child.name} absent today`}
-                                                >
-                                                    ✕
-                                                </button>
-                                            )}
-                                        </>
-                                    ) : (
-                                        <button
-                                            className="chip chip-btn chip-dashed"
-                                            onClick={() => onLogHours(child.id, child.name)}
-                                            title="Log today's hours"
-                                            aria-label={`Log today's hours for ${child.name}`}
-                                        >
-                                            + log
-                                        </button>
-                                    )}
-                                </div>
-
-                                <button
-                                    className={`sprout-blob ${child.shape} ${grown ? (isAuto ? 'grown-auto' : 'grown-manual') : 'dormant'}`}
-                                    onClick={() => router.push(`/children/${child.id}`)}
-                                    aria-label={`Open ${child.name}'s profile`}
-                                >
-                                    <span aria-hidden="true">{child.icon}</span>
-                                </button>
-
-                                <span className="sprout-name">{child.name}</span>
-                                {!grown && (
-                                    <span className="sprout-meta">{child.totalHours.toFixed(1)}h total</span>
-                                )}
-
+                            return (
                                 <div
-                                    className={`sprout-stem ${grown ? 'stem-grown' : 'stem-dormant'}`}
-                                    aria-hidden="true"
-                                />
-                            </div>
-                        );
-                    })}
+                                    key={child.id}
+                                    className="sprout-slot"
+                                    style={{ paddingBottom: `${STAGGER[i % STAGGER.length]}px` }}
+                                >
+                                    <div className="sprout-chips">
+                                        {grown ? (
+                                            <>
+                                                <button
+                                                    className={`chip chip-btn ${isAuto ? 'chip-sky' : 'chip-leaf'}`}
+                                                    onClick={() => onLogHours(child.id, child.name)}
+                                                    title="Edit today's hours"
+                                                    aria-label={`Edit today's hours for ${child.name} — currently ${record.hours} hours`}
+                                                >
+                                                    {record.hours}h {isAuto ? 'auto' : '✓'}
+                                                </button>
+                                                {isAuto && (
+                                                    <button
+                                                        className="chip chip-btn chip-berry"
+                                                        onClick={() => onDeleteRecord(record.id)}
+                                                        title="Mark absent"
+                                                        aria-label={`Mark ${child.name} absent today`}
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <button
+                                                className="chip chip-btn chip-dashed"
+                                                onClick={() => onLogHours(child.id, child.name)}
+                                                title="Log today's hours"
+                                                aria-label={`Log today's hours for ${child.name}`}
+                                            >
+                                                + log
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        className={`sprout-blob ${child.shape} ${grown ? (isAuto ? 'grown-auto' : 'grown-manual') : 'dormant'}`}
+                                        onClick={() => router.push(`/children/${child.id}`)}
+                                        aria-label={`Open ${child.name}'s profile`}
+                                    >
+                                        <span aria-hidden="true">{child.icon}</span>
+                                    </button>
+
+                                    <span className="sprout-name">{child.name}</span>
+                                    {!grown && (
+                                        <span className="sprout-meta">{child.totalHours.toFixed(1)}h total</span>
+                                    )}
+
+                                    <div
+                                        className={`sprout-stem ${grown ? 'stem-grown' : 'stem-dormant'}`}
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
-        </div>
+            </GardenDock>
+        </>
     );
 }

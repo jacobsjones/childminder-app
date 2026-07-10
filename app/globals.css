@@ -821,14 +821,81 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   to { transform: translateY(-4px) rotate(3deg); }
 }
 
+/* Sky above the garden */
+.sky {
+  position: relative;
+  flex: 1;
+  min-height: 110px;
+}
+
+.cloud {
+  position: absolute;
+  height: 24px;
+  background: color-mix(in oklab, var(--surface), var(--sky-soft) 55%);
+  border-radius: var(--r-pill);
+  animation: cloud-drift ease-in-out infinite alternate;
+}
+
+.cloud::before {
+  content: "";
+  position: absolute;
+  bottom: 55%;
+  left: 22%;
+  width: 45%;
+  height: 130%;
+  background: inherit;
+  border-radius: 50%;
+}
+
+@keyframes cloud-drift {
+  from { transform: translateX(-14px); }
+  to { transform: translateX(14px); }
+}
+
+/* Garden docked to the bottom of the screen */
+.garden-dock {
+  position: relative;
+  margin: 0 -1rem;
+}
+
+.hills-bg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 115px;
+  pointer-events: none;
+}
+
+.hills-bg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hills-bg::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: calc(1.25rem + 88px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in oklab, var(--leaf-soft), var(--leaf) 16%);
+}
+
+@media (min-width: 768px) {
+  .garden-dock { margin: 0 -2rem; }
+  .hills-bg::after { height: 2.5rem; }
+}
+
 .garden-scroll {
+  position: relative;
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x proximity;
   -ms-overflow-style: none;
   scrollbar-width: none;
-  margin: 0 -1rem;
-  padding: 0 1rem;
+  padding: 0 0.75rem;
 }
 
 .garden-scroll::-webkit-scrollbar { display: none; }
@@ -841,16 +908,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   min-width: 100%;
   height: 250px;
   margin: 0 auto;
-}
-
-.garden-strip .hills {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  height: 115px;
-  pointer-events: none;
 }
 
 .sprout-slot {
