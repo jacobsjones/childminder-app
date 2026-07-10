@@ -821,11 +821,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   to { transform: translateY(-4px) rotate(3deg); }
 }
 
+/* One-screen scene lock (homepage) */
+body.scene-locked {
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding-bottom: 0;
+}
+
+body.scene-locked .container {
+  height: 100dvh;
+  min-height: 100dvh;
+  padding-bottom: 0;
+}
+
+body.scene-locked .hills-bg::after {
+  height: 0;
+}
+
 /* Sky above the garden */
 .sky {
   position: relative;
   flex: 1;
-  min-height: 110px;
+  min-height: 40px;
 }
 
 .cloud {
@@ -1009,6 +1026,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   height: 24px;
   background: var(--leaf);
   border-radius: var(--r-pill);
+  transition: height var(--t-med) var(--ease-out);
 }
 
 .stem-grown::after {

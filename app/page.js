@@ -9,7 +9,10 @@ const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-const STAGGER = [44, 70, 32, 58];
+const STAGGER = [36, 52, 28, 44];
+
+// Stem grows with the day's hours: ~6px per hour
+const stemHeight = (hours) => Math.max(10, Math.min(10 + hours * 6, 64));
 
 export default function Dashboard() {
     const [children, setChildren] = useState([]);
@@ -40,6 +43,12 @@ export default function Dashboard() {
             console.error('[Dashboard] Failed to load data:', error);
             setLoading(false);
         }
+    }, []);
+
+    // Lock the homepage to one screen — no vertical scrolling
+    useEffect(() => {
+        document.body.classList.add('scene-locked');
+        return () => document.body.classList.remove('scene-locked');
     }, []);
 
     useEffect(() => {
@@ -319,6 +328,7 @@ function Garden({ childrenData, onLogHours, onDeleteRecord }) {
 
                                     <div
                                         className={`sprout-stem ${grown ? 'stem-grown' : 'stem-dormant'}`}
+                                        style={grown ? { height: `${stemHeight(record.hours)}px` } : undefined}
                                         aria-hidden="true"
                                     />
                                 </div>
