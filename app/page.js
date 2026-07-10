@@ -2,12 +2,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LayoutGrid, List, XCircle, Clock, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import HoursLogModal from '@/components/HoursLogModal';
 
 const EMOJI = ['🐻', '🦊', '🐸', '🐥', '🐙', '🦔', '🐝', '⭐'];
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+const chunk = (arr, size) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+};
+
+const SLOTS = {
+    1: { lefts: [50], bottoms: [58] },
+    2: { lefts: [30, 70], bottoms: [58, 40] },
+    3: { lefts: [18, 50, 82], bottoms: [48, 74, 36] },
+};
 
 export default function Dashboard() {
     const [children, setChildren] = useState([]);
@@ -28,7 +40,7 @@ export default function Dashboard() {
                 return {
                     ...c,
                     icon: EMOJI[sum % EMOJI.length],
-                    blob: `blob-${sum % 4}`,
+                    shape: `shape-${sum % 4}`,
                 };
             });
 
@@ -55,7 +67,7 @@ export default function Dashboard() {
         };
     }, [loadData]);
 
-    const handleLogHours = async (childId, childName) => {
+    const handleLogHours = (childId, childName) => {
         const child = children.find(c => c.id === childId);
         const todayHours = child?.todayRecord?.hours || 0;
 
@@ -105,45 +117,34 @@ export default function Dashboard() {
         }
     };
 
-    const getChildStatus = (childId) => {
-        const child = children.find(c => c.id === childId);
-        const record = child?.todayRecord;
-
-        if (record) {
-            return {
-                hasHours: true,
-                hours: record.hours,
-                isAuto: record.isAuto,
-                record
-            };
-        }
-        return { hasHours: false, hours: 0, isAuto: false, record: null };
-    };
-
     const loggedTodayCount = children.filter(c => c.todayRecord).length;
     const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
     return (
         <main>
-            <header style={{ marginBottom: '1.75rem' }}>
-                <h1 style={{ marginBottom: '0.25rem' }}>Hey Sue! ☀️</h1>
-                <p className="page-sub">
-                    {today}
-                    {!loading && children.length > 0 && (
-                        <> · {loggedTodayCount === 0
-                            ? 'no hours logged yet'
-                            : `${loggedTodayCount} little ${loggedTodayCount === 1 ? 'one' : 'ones'} logged today`}
-                        </>
-                    )}
-                </p>
+            <header className="row" style={{ gap: '1rem', marginBottom: '0.75rem' }}>
+                <div className="sun-blob" aria-hidden="true">☀️</div>
+                <div>
+                    <h1 style={{ marginBottom: '0.15rem' }}>Hey Sue!</h1>
+                    <p className="page-sub" style={{ marginTop: 0 }}>
+                        {today}
+                        {!loading && children.length > 0 && (
+                            <> · {loggedTodayCount === 0
+                                ? 'the garden is waiting'
+                                : `${loggedTodayCount} of ${children.length} growing today`}
+                            </>
+                        )}
+                    </p>
+                </div>
             </header>
 
             {loading ? (
-                <DashboardSkeleton />
+                <GardenSkeleton />
+            ) : children.length === 0 ? (
+                <EmptyGarden />
             ) : (
-                <DashboardList
+                <Garden
                     childrenData={children}
-                    getChildStatus={getChildStatus}
                     onLogHours={handleLogHours}
                     onDeleteRecord={handleDeleteRecord}
                 />
@@ -161,187 +162,144 @@ export default function Dashboard() {
     );
 }
 
-function DashboardSkeleton() {
+function Hills({ flipped }) {
     return (
-        <section className="card" aria-busy="true" aria-label="Loading children">
-            <div className="stack">
-                {[0, 1, 2].map(i => (
-                    <div key={i} className="row" style={{ padding: '0.75rem 0' }}>
-                        <div className="avatar" style={{ background: 'var(--surface-2)', borderRadius: '50%' }} />
-                        <div style={{ flex: 1 }}>
-                            <div style={{ height: '0.9rem', width: '40%', background: 'var(--surface-2)', borderRadius: 'var(--r-pill)', marginBottom: '0.5rem' }} />
-                            <div style={{ height: '0.7rem', width: '25%', background: 'var(--surface-2)', borderRadius: 'var(--r-pill)' }} />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </section>
+        <svg
+            className="hills"
+            viewBox="0 0 300 115"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            style={flipped ? { transform: 'scaleX(-1)' } : undefined}
+        >
+            <path className="hill-back" d="M0,58 C60,38 120,66 180,48 C230,34 270,50 300,40 L300,115 L0,115 Z" />
+            <path className="hill-front" d="M0,88 C80,68 180,98 300,74 L300,115 L0,115 Z" />
+        </svg>
     );
 }
 
-function DashboardList({ childrenData, getChildStatus, onLogHours, onDeleteRecord }) {
-    const [viewMode, setViewMode] = useState('list');
-    const router = useRouter();
-
-    useEffect(() => {
-        const savedView = localStorage.getItem('dashboard_view_mode');
-        if (savedView) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setViewMode(savedView);
-        }
-    }, []);
-
-    const handleSetViewMode = (mode) => {
-        setViewMode(mode);
-        localStorage.setItem('dashboard_view_mode', mode);
-    };
-
-    const sortedData = childrenData.map(c => {
-        const status = getChildStatus(c.id);
-        return {
-            ...c,
-            todayStatus: status
-        };
-    }).sort((a, b) => {
-        if (a.todayStatus.hasHours && !b.todayStatus.hasHours) return -1;
-        if (!a.todayStatus.hasHours && b.todayStatus.hasHours) return 1;
-        return a.name.localeCompare(b.name);
-    });
-
-    const handleCardClick = (e, childId) => {
-        if (e.target.closest('button')) return;
-        router.push(`/children/${childId}`);
-    };
-
-    if (childrenData.length === 0) {
-        return (
-            <section className="card empty-state">
-                <span className="empty-emoji" aria-hidden="true">🌱</span>
-                <h2 style={{ color: 'var(--ink)' }}>No little ones yet</h2>
-                <p style={{ margin: '0 auto 1.25rem' }}>Add your first child and their hours will show up here each day.</p>
-                <Link href="/children" className="btn btn-primary">
-                    <Plus size={18} /> Add a child
-                </Link>
-            </section>
-        );
-    }
-
+function GardenSkeleton() {
     return (
-        <section className="card">
-            <div className="row-between" style={{ marginBottom: '1rem' }}>
-                <h2 style={{ margin: 0 }}>Today</h2>
-                <div className="seg seg-icon" role="group" aria-label="View mode">
-                    <button
-                        onClick={() => handleSetViewMode('list')}
-                        className={`seg-btn ${viewMode === 'list' ? 'active' : ''}`}
-                        aria-label="List view"
-                        aria-pressed={viewMode === 'list'}
+        <div className="garden" aria-busy="true" aria-label="Loading the garden">
+            <div className="garden-row">
+                <Hills flipped={false} />
+                {[18, 50, 82].map((left, i) => (
+                    <div key={i} className="sprout" style={{ left: `${left}%`, bottom: `${[48, 74, 36][i]}px` }}>
+                        <div className={`sprout-blob dormant shape-${i}`} style={{ borderStyle: 'solid', borderColor: 'var(--line)' }} />
+                        <div style={{ height: '0.8rem', width: '3.5rem', background: 'var(--surface-2)', borderRadius: 'var(--r-pill)' }} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function EmptyGarden() {
+    return (
+        <div className="garden">
+            <div className="garden-row">
+                <Hills flipped={false} />
+                <div className="sprout" style={{ left: '50%', bottom: '58px' }}>
+                    <Link
+                        href="/children"
+                        className="sprout-blob dormant shape-0"
+                        style={{ textDecoration: 'none', color: 'var(--leaf-deep)' }}
+                        aria-label="Add your first child"
                     >
-                        <List size={18} />
-                    </button>
-                    <button
-                        onClick={() => handleSetViewMode('grid')}
-                        className={`seg-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                        aria-label="Grid view"
-                        aria-pressed={viewMode === 'grid'}
-                    >
-                        <LayoutGrid size={18} />
-                    </button>
+                        <Plus size={26} />
+                    </Link>
+                    <span className="sprout-name">Plant your first child</span>
+                    <span className="sprout-meta">their days will grow here</span>
+                    <div className="sprout-stem stem-dormant" aria-hidden="true" />
                 </div>
             </div>
+        </div>
+    );
+}
 
-            <div style={viewMode === 'grid' ? {
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                gap: '0.75rem',
-                width: '100%'
-            } : { display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {sortedData.map((child) => {
-                    const done = child.todayStatus.hasHours;
-                    const isGrid = viewMode === 'grid';
+function Garden({ childrenData, onLogHours, onDeleteRecord }) {
+    const router = useRouter();
 
-                    return (
-                        <div
-                            key={child.id}
-                            onClick={(e) => handleCardClick(e, child.id)}
-                            className="card-tap"
-                            style={{
-                                background: isGrid ? 'var(--surface-2)' : 'transparent',
-                                border: isGrid ? 'none' : '1px solid var(--line)',
-                                borderRadius: 'var(--r-lg)',
-                                padding: isGrid ? '1rem 0.75rem' : '0.9rem 1rem',
-                                display: 'flex',
-                                flexDirection: isGrid ? 'column' : 'row',
-                                alignItems: 'center',
-                                gap: isGrid ? '0.5rem' : '0.9rem',
-                                textAlign: isGrid ? 'center' : 'left',
-                                width: '100%',
-                                minWidth: 0,
-                                overflow: 'hidden'
-                            }}
-                        >
-                            <div className={`avatar ${child.blob}`} aria-hidden="true">
-                                {child.icon}
-                            </div>
+    const sorted = [...childrenData].sort((a, b) => a.name.localeCompare(b.name));
+    const rows = chunk(sorted, 3);
 
-                            <div style={{ flex: isGrid ? 'none' : 1, minWidth: 0, width: isGrid ? '100%' : 'auto' }}>
-                                <h3 style={{ margin: 0, fontSize: isGrid ? '1rem' : '1.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {child.name}
-                                </h3>
-                                <div style={{ marginTop: '0.25rem' }}>
-                                    {done ? (
-                                        <span className="chip chip-leaf">✓ {child.todayStatus.hours}h today</span>
-                                    ) : (
-                                        <span style={{ fontSize: '0.85rem', color: 'var(--ink-soft)' }}>
-                                            {child.totalHours.toFixed(1)}h total
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
+    return (
+        <div className="garden">
+            {rows.map((row, rowIdx) => {
+                const layout = SLOTS[row.length] || SLOTS[3];
+                const flipped = rowIdx % 2 === 1;
+                const bottoms = flipped ? [...layout.bottoms].reverse() : layout.bottoms;
 
-                            <div className="row" style={{ gap: '0.4rem', width: isGrid ? '100%' : 'auto', justifyContent: 'center', flexShrink: 0 }}>
-                                {done ? (
-                                    <>
-                                        <button
-                                            onClick={() => onLogHours(child.id, child.name)}
-                                            className={`btn btn-sky ${isGrid ? '' : 'btn-icon'}`}
-                                            style={isGrid ? { flex: 1, padding: '0.5rem 0.75rem', fontSize: '0.85rem' } : {}}
-                                            title="Edit hours"
-                                            aria-label={`Edit hours for ${child.name}`}
-                                        >
-                                            <Clock size={isGrid ? 15 : 19} />
-                                            {isGrid && 'Edit'}
-                                        </button>
-                                        {child.todayStatus.isAuto && (
+                return (
+                    <div className="garden-row" key={rowIdx}>
+                        <Hills flipped={flipped} />
+                        {row.map((child, i) => {
+                            const record = child.todayRecord;
+                            const grown = !!record;
+                            const isAuto = grown && record.isAuto;
+
+                            return (
+                                <div
+                                    key={child.id}
+                                    className="sprout"
+                                    style={{ left: `${layout.lefts[i]}%`, bottom: `${bottoms[i]}px` }}
+                                >
+                                    <div className="sprout-chips">
+                                        {grown ? (
+                                            <>
+                                                <button
+                                                    className={`chip chip-btn ${isAuto ? 'chip-sky' : 'chip-leaf'}`}
+                                                    onClick={() => onLogHours(child.id, child.name)}
+                                                    title="Edit today's hours"
+                                                    aria-label={`Edit today's hours for ${child.name} — currently ${record.hours} hours`}
+                                                >
+                                                    {record.hours}h {isAuto ? 'auto' : '✓'}
+                                                </button>
+                                                {isAuto && (
+                                                    <button
+                                                        className="chip chip-btn chip-berry"
+                                                        onClick={() => onDeleteRecord(record.id)}
+                                                        title="Mark absent"
+                                                        aria-label={`Mark ${child.name} absent today`}
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
+                                            </>
+                                        ) : (
                                             <button
-                                                onClick={() => onDeleteRecord(child.todayStatus.record.id)}
-                                                className={`btn btn-danger-soft ${isGrid ? '' : 'btn-icon'}`}
-                                                style={isGrid ? { flex: 1, padding: '0.5rem 0.75rem', fontSize: '0.85rem' } : {}}
-                                                title="Mark absent"
-                                                aria-label={`Mark ${child.name} absent`}
+                                                className="chip chip-btn chip-dashed"
+                                                onClick={() => onLogHours(child.id, child.name)}
+                                                title="Log today's hours"
+                                                aria-label={`Log today's hours for ${child.name}`}
                                             >
-                                                <XCircle size={isGrid ? 15 : 19} />
-                                                {isGrid && 'Absent'}
+                                                + log
                                             </button>
                                         )}
-                                    </>
-                                ) : (
+                                    </div>
+
                                     <button
-                                        onClick={() => onLogHours(child.id, child.name)}
-                                        className={`btn btn-primary wiggle-on-hover ${isGrid ? '' : 'btn-icon'}`}
-                                        style={isGrid ? { width: '100%', padding: '0.5rem 0.75rem', fontSize: '0.85rem' } : {}}
-                                        title="Log hours"
-                                        aria-label={`Log hours for ${child.name}`}
+                                        className={`sprout-blob ${child.shape} ${grown ? (isAuto ? 'grown-auto' : 'grown-manual') : 'dormant'}`}
+                                        onClick={() => router.push(`/children/${child.id}`)}
+                                        aria-label={`Open ${child.name}'s profile`}
                                     >
-                                        <Clock size={isGrid ? 15 : 19} />
-                                        {isGrid && 'Log hours'}
+                                        <span aria-hidden="true">{child.icon}</span>
                                     </button>
-                                )}
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </section>
+
+                                    <span className="sprout-name">{child.name}</span>
+                                    {!grown && (
+                                        <span className="sprout-meta">{child.totalHours.toFixed(1)}h total</span>
+                                    )}
+
+                                    <div
+                                        className={`sprout-stem ${grown ? 'stem-grown' : 'stem-dormant'}`}
+                                        aria-hidden="true"
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            })}
+        </div>
     );
 }

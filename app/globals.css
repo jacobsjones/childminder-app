@@ -801,6 +801,155 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .spin { animation: spin 1s linear infinite; }
 
+/* ============ Garden home ============ */
+
+.sun-blob {
+  width: 64px;
+  height: 64px;
+  background: var(--sun-soft);
+  border-radius: 61% 39% 52% 48% / 44% 59% 41% 56%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+  flex-shrink: 0;
+  animation: sun-bob 6s ease-in-out infinite alternate;
+}
+
+@keyframes sun-bob {
+  from { transform: translateY(0) rotate(0deg); }
+  to { transform: translateY(-4px) rotate(3deg); }
+}
+
+.garden {
+  display: flex;
+  flex-direction: column;
+}
+
+.garden-row {
+  position: relative;
+  height: 235px;
+}
+
+.garden-row .hills {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 115px;
+  pointer-events: none;
+}
+
+.hill-back { fill: var(--leaf-soft); }
+.hill-front { fill: color-mix(in oklab, var(--leaf-soft), var(--leaf) 16%); }
+
+.sprout {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 116px;
+  z-index: 1;
+}
+
+.sprout-chips {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.chip-btn {
+  cursor: pointer;
+  border: none;
+  transition: transform var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+}
+
+.chip-btn:hover { transform: translateY(-1px); }
+.chip-btn:active { transform: scale(0.92); }
+
+.chip-dashed {
+  background: var(--surface);
+  border: 1.5px dashed var(--leaf);
+  color: var(--leaf-deep);
+}
+
+.sprout-blob {
+  width: 62px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: transform var(--t-fast) var(--ease-out), border-radius var(--t-med) var(--ease-out);
+}
+
+.sprout-blob.grown-manual { background: var(--leaf); }
+.sprout-blob.grown-auto { background: var(--sky); }
+
+.sprout-blob.dormant {
+  background: var(--surface);
+  border: 2px dashed var(--line-strong);
+}
+
+.sprout:hover .sprout-blob { transform: rotate(-5deg) scale(1.06); }
+
+.shape-0 { border-radius: 61% 39% 52% 48% / 44% 59% 41% 56%; }
+.shape-1 { border-radius: 39% 61% 45% 55% / 58% 40% 60% 42%; }
+.shape-2 { border-radius: 52% 48% 62% 38% / 42% 55% 45% 58%; }
+.shape-3 { border-radius: 45% 55% 40% 60% / 55% 45% 60% 40%; }
+
+.sprout-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--ink);
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sprout-meta {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.sprout-stem {
+  position: relative;
+  width: 4px;
+  order: 5;
+}
+
+.stem-grown {
+  height: 24px;
+  background: var(--leaf);
+  border-radius: var(--r-pill);
+}
+
+.stem-grown::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 7px;
+  width: 15px;
+  height: 11px;
+  background: var(--leaf);
+  border-radius: 0 100% 40% 100%;
+  transform: rotate(-8deg);
+}
+
+.stem-dormant {
+  height: 13px;
+  width: 0;
+  border-left: 3px dashed var(--line-strong);
+}
+
 /* ============ Reduced motion ============ */
 
 @media (prefers-reduced-motion: reduce) {
