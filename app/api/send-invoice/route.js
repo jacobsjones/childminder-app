@@ -39,41 +39,41 @@ export async function POST(request) {
         const businessName = settings.businessName || 'LittleHours';
         const businessEmail = settings.businessEmail;
 
-        // Create branded HTML email
+        // Create branded HTML email (Fresh Garden)
         const htmlContent = `
-            <div style="background-color: #1f2937; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                    <h1 style="color: #3b82f6; margin-top: 0; margin-bottom: 10px; font-size: 28px; font-weight: 700;">${businessName}</h1>
-                    <p style="color: #9ca3af; font-size: 14px; margin-top: 0; margin-bottom: 30px;">Childcare Invoice</p>
+            <div style="background-color: #f3f8f3; padding: 40px 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 20px; border: 1px solid #dfe9df; padding: 40px;">
+                    <h1 style="color: #3d8558; margin-top: 0; margin-bottom: 10px; font-size: 28px; font-weight: 700;">${businessName}</h1>
+                    <p style="color: #5c6e63; font-size: 14px; margin-top: 0; margin-bottom: 30px;">Childcare invoice</p>
 
-                    <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 10px;">
+                    <p style="color: #2b3a31; font-size: 16px; line-height: 1.6; margin-bottom: 10px;">
                         Dear Parent/Guardian,
                     </p>
-                    <p style="color: #374151; font-size: 16px; line-height: 1.6;">
+                    <p style="color: #2b3a31; font-size: 16px; line-height: 1.6;">
                         Please find attached the invoice for <strong>${childName}</strong> for <strong>${monthYear}</strong>.
                     </p>
 
-                    <div style="background-color: #f3f4f6; border-radius: 12px; padding: 24px; margin: 30px 0;">
-                        <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">Total Hours:</p>
-                        <p style="color: #1f2937; font-size: 18px; font-weight: 600; margin: 0 0 16px 0;">${totalHours.toFixed(2)} hours</p>
+                    <div style="background-color: #dff0e2; border-radius: 16px; padding: 24px; margin: 30px 0;">
+                        <p style="color: #5c6e63; font-size: 14px; margin: 0 0 8px 0;">Total hours</p>
+                        <p style="color: #2b3a31; font-size: 18px; font-weight: 600; margin: 0 0 16px 0;">${totalHours.toFixed(2)} hours</p>
 
-                        <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">Total Amount Due:</p>
-                        <p style="color: #3b82f6; font-size: 24px; font-weight: 700; margin: 0;">£${totalCost}</p>
+                        <p style="color: #5c6e63; font-size: 14px; margin: 0 0 8px 0;">Total amount due</p>
+                        <p style="color: #2a5a40; font-size: 24px; font-weight: 700; margin: 0;">£${totalCost}</p>
                     </div>
 
-                    <div style="margin-top: 30px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
-                        <p style="color: #6b7280; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-                            If you have any questions regarding this invoice, please don't hesitate to contact us.
+                    <div style="margin-top: 30px; padding-top: 24px; border-top: 1px solid #dfe9df;">
+                        <p style="color: #5c6e63; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
+                            If you have any questions about this invoice, just reply to this email.
                         </p>
-                        <p style="color: #374151; font-size: 15px; line-height: 1.5; margin: 0;">
+                        <p style="color: #2b3a31; font-size: 15px; line-height: 1.5; margin: 0;">
                             Kind regards,<br/>
                             <strong>${businessName}</strong>
                         </p>
                     </div>
                 </div>
 
-                <p style="text-align: center; color: #9ca3af; font-size: 12px; margin-top: 24px; margin-bottom: 0;">
-                    Powered by LittleHours
+                <p style="text-align: center; color: #5c6e63; font-size: 12px; margin-top: 24px; margin-bottom: 0;">
+                    Made with LittleHours
                 </p>
             </div>
         `;
