@@ -2,13 +2,14 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Save, Calendar, Sunrise } from 'lucide-react';
+import { ArrowLeft, Save, Calendar, Sunrise, Trash2 } from 'lucide-react';
 
 export default function EditProfile() {
     const { id } = useParams();
     const router = useRouter();
     const [child, setChild] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [removing, setRemoving] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -50,6 +51,34 @@ export default function EditProfile() {
         } catch (error) {
             console.error('Error saving to server:', error);
             alert('Failed to save changes');
+        }
+    };
+
+    const handleRemoveChild = async () => {
+        const confirmed = confirm(
+            `Remove ${child.name}? This permanently deletes their profile and all logged hours and invoices. This can't be undone.`
+        );
+        if (!confirmed) return;
+
+        setRemoving(true);
+        try {
+            const response = await fetch(`/api/children/${id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deleteType: 'child' }),
+            });
+
+            if (response.ok) {
+                router.push('/children');
+            } else {
+                console.error('Failed to remove child');
+                alert('Failed to remove child');
+                setRemoving(false);
+            }
+        } catch (error) {
+            console.error('Error removing child:', error);
+            alert('Failed to remove child');
+            setRemoving(false);
         }
     };
 
@@ -215,6 +244,23 @@ export default function EditProfile() {
                             </p>
                         </div>
                     )}
+                </section>
+
+                {/* Danger zone */}
+                <section className="card" style={{ marginBottom: 0 }}>
+                    <h2 style={{ marginBottom: '0.4rem' }}>Remove child</h2>
+                    <p style={{ color: 'var(--ink-soft)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                        Permanently deletes {child.name}&apos;s profile, along with all logged hours and invoices.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={handleRemoveChild}
+                        disabled={removing}
+                        className="btn btn-danger-soft"
+                    >
+                        <Trash2 size={18} />
+                        {removing ? 'Removing…' : `Remove ${child.name}`}
+                    </button>
                 </section>
 
                 <button

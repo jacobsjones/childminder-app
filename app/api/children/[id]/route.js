@@ -60,11 +60,25 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
     try {
+        const { id } = await params;
         const { deleteType, recordId } = await request.json();
 
         if (deleteType === 'attendance' && recordId) {
             const { deleteAttendance } = await import('@/lib/serverStore');
             await deleteAttendance(recordId);
+            return NextResponse.json({ success: true });
+        }
+
+        if (deleteType === 'child') {
+            const childId = parseInt(id);
+            const { getChild: getChildRecord, deleteChild } = await import('@/lib/serverStore');
+
+            const existing = await getChildRecord(childId);
+            if (!existing) {
+                return NextResponse.json({ error: 'Child not found' }, { status: 404 });
+            }
+
+            await deleteChild(childId);
             return NextResponse.json({ success: true });
         }
 
