@@ -1,7 +1,14 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Moon, Sun, Monitor, Building2, Save } from 'lucide-react';
+import { Moon, Sun, Monitor, Building2, FileText, Save } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
+import { DEFAULT_NOTES } from '@/lib/invoiceTemplate';
+
+const hintStyle = {
+    color: 'var(--ink-soft)',
+    fontSize: '0.85rem',
+    margin: '-0.6rem 0 1rem',
+};
 
 export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
@@ -13,6 +20,13 @@ export default function SettingsPage() {
         sortCode: '',
         accountNumber: '',
         paymentTermsNote: '',
+        providerName: '',
+        businessAddress: '',
+        registrationNumber: '',
+        unavailableDates: '',
+        absenceNote: '',
+        feedbackNote: '',
+        financialNote: '',
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -228,18 +242,105 @@ export default function SettingsPage() {
                                 style={{ resize: 'vertical' }}
                             />
 
-                            <button
-                                type="submit"
-                                disabled={saving}
-                                className="btn btn-primary btn-lg"
-                                style={{ marginTop: '0.5rem' }}
-                            >
-                                <Save size={20} />
-                                {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save business details'}
-                            </button>
                         </>
                     )}
                 </section>
+
+                {/* Invoice document */}
+                <section className="card" style={{ marginTop: '1.5rem' }}>
+                    <div className="row" style={{ marginBottom: '0.5rem' }}>
+                        <FileText size={22} color="var(--leaf)" aria-hidden="true" />
+                        <h3 style={{ margin: 0 }}>Invoice document</h3>
+                    </div>
+                    <p style={{ color: 'var(--ink-soft)', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
+                        The sign-off, notes and unavailable dates printed on each invoice.
+                    </p>
+
+                    {!loading && (
+                        <>
+                            <label htmlFor="provider-name">Your name (for the sign-off)</label>
+                            <input
+                                id="provider-name"
+                                type="text"
+                                value={businessSettings.providerName}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, providerName: e.target.value })}
+                                placeholder="e.g. Susan Stevenson"
+                            />
+
+                            <label htmlFor="business-address">Address</label>
+                            <textarea
+                                id="business-address"
+                                value={businessSettings.businessAddress}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, businessAddress: e.target.value })}
+                                placeholder={'26 Garden wood Road\nEast Grinstead\nWest Sussex\nRH19 1NL'}
+                                rows={4}
+                                style={{ resize: 'vertical' }}
+                            />
+                            <p style={hintStyle}>One line of the address per line.</p>
+
+                            <label htmlFor="registration-number">Ofsted registration number</label>
+                            <input
+                                id="registration-number"
+                                type="text"
+                                value={businessSettings.registrationNumber}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, registrationNumber: e.target.value })}
+                                placeholder="e.g. EY266859"
+                            />
+
+                            <label htmlFor="unavailable-dates">Unavailable dates for this year</label>
+                            <textarea
+                                id="unavailable-dates"
+                                value={businessSettings.unavailableDates}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, unavailableDates: e.target.value })}
+                                placeholder={'Wednesday 29th July\nMonday August 24th until Saturday 5th September'}
+                                rows={4}
+                                style={{ resize: 'vertical' }}
+                            />
+                            <p style={hintStyle}>One date or date range per line.</p>
+
+                            <label htmlFor="absence-note">Absence policy note</label>
+                            <textarea
+                                id="absence-note"
+                                value={businessSettings.absenceNote}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, absenceNote: e.target.value })}
+                                placeholder={DEFAULT_NOTES.absence}
+                                rows={3}
+                                style={{ resize: 'vertical' }}
+                            />
+
+                            <label htmlFor="feedback-note">Feedback note</label>
+                            <textarea
+                                id="feedback-note"
+                                value={businessSettings.feedbackNote}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, feedbackNote: e.target.value })}
+                                placeholder={DEFAULT_NOTES.feedback}
+                                rows={3}
+                                style={{ resize: 'vertical' }}
+                            />
+
+                            <label htmlFor="financial-note">Financial difficulties note</label>
+                            <textarea
+                                id="financial-note"
+                                value={businessSettings.financialNote}
+                                onChange={(e) => setBusinessSettings({ ...businessSettings, financialNote: e.target.value })}
+                                placeholder={DEFAULT_NOTES.financial}
+                                rows={3}
+                                style={{ resize: 'vertical' }}
+                            />
+                            <p style={hintStyle}>Leave a note blank to use the wording shown.</p>
+                        </>
+                    )}
+                </section>
+
+                <button
+                    type="submit"
+                    disabled={saving || loading}
+                    className="btn btn-primary btn-lg"
+                    style={{ marginTop: '1.5rem' }}
+                >
+                    <Save size={20} />
+                    {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save settings'}
+                </button>
             </form>
         </main>
     );

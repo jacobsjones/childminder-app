@@ -1,8 +1,16 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
-import { Camera, Send, MailWarning } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Camera, Send, MailWarning, Download, RotateCcw } from 'lucide-react';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
+import {
+    availableMonthKeys,
+    calculateTotalHours,
+    currentMonthKey,
+    filterAttendanceByMonthKey,
+    formatMonthKey,
+} from '@/lib/monthHelper';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
+import { canRebuildInvoice } from '@/lib/storedInvoice';
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
@@ -12,6 +20,10 @@ export default function FinancesPage() {
     const [expenses, setExpenses] = useState([]);
     const [settings, setSettings] = useState(null);
     const [invoices, setInvoices] = useState([]);
+    const [attendance, setAttendance] = useState([]);
+
+    // Invoices cover one month at a time; default to the month we are in.
+    const [monthKey, setMonthKey] = useState(currentMonthKey);
 
     const [previewModal, setPreviewModal] = useState({
         isOpen: false,
@@ -21,6 +33,10 @@ export default function FinancesPage() {
     });
 
     const [expenseForm, setExpenseForm] = useState({ desc: '', amount: '' });
+
+    // Per-invoice re-send and status state, keyed by invoice id
+    const [resendState, setResendState] = useState({});
+    const [statusPending, setStatusPending] = useState({});
 
     const loadData = useCallback(async () => {
         try {
@@ -40,6 +56,12 @@ export default function FinancesPage() {
             if (invoicesResponse.ok) {
                 setInvoices(await invoicesResponse.json());
             }
+
+            const syncResponse = await fetch('/api/sync');
+            if (syncResponse.ok) {
+                const { attendance: allAttendance } = await syncResponse.json();
+                setAttendance(allAttendance || []);
+            }
         } catch (error) {
             console.error('Failed to load data:', error);
         }
@@ -50,44 +72,26 @@ export default function FinancesPage() {
         return () => clearTimeout(timer);
     }, [loadData]);
 
-    const [summaries, setSummaries] = useState({});
+    // Months that have hours, so she can invoice a month after it has ended
+    const monthOptions = useMemo(() => availableMonthKeys(attendance), [attendance]);
 
-    useEffect(() => {
-        const updateSummaries = async () => {
-            try {
-                const response = await fetch('/api/sync');
-                if (!response.ok) return;
+    // Hours and cost per child for the selected month only
+    const summaries = useMemo(() => {
+        const monthAttendance = filterAttendanceByMonthKey(attendance, monthKey);
+        const byChild = {};
 
-                const { attendance: allAttendance } = await response.json();
-                const newSummaries = {};
+        children.forEach(child => {
+            const sessions = monthAttendance.filter(record => record.childId === child.id);
+            const hours = calculateTotalHours(sessions);
+            byChild[child.id] = {
+                hours,
+                sessions,
+                cost: (hours * child.rate).toFixed(2),
+            };
+        });
 
-                for (const child of children) {
-                    const childSessions = allAttendance.filter(a => a.childId === child.id && (a.hours !== undefined || a.endTime));
-                    let totalHours = 0;
-                    childSessions.forEach(s => {
-                        if (s.hours !== undefined) {
-                            totalHours += s.hours;
-                        } else if (s.startTime && s.endTime) {
-                            const start = new Date(s.startTime);
-                            const end = new Date(s.endTime);
-                            totalHours += (end - start) / (1000 * 60 * 60);
-                        }
-                    });
-                    newSummaries[child.id] = {
-                        hours: totalHours,
-                        cost: (totalHours * child.rate).toFixed(2)
-                    };
-                }
-                setSummaries(newSummaries);
-            } catch (error) {
-                console.error('Failed to update summaries:', error);
-            }
-        };
-
-        if (children.length > 0) {
-            updateSummaries();
-        }
-    }, [children]);
+        return byChild;
+    }, [attendance, children, monthKey]);
 
     const handleAddExpense = async (e) => {
         e.preventDefault();
@@ -96,36 +100,23 @@ export default function FinancesPage() {
         setExpenseForm({ desc: '', amount: '' });
     };
 
-    const handleGenerateInvoice = async (child) => {
+    const handleGenerateInvoice = (child) => {
         try {
-            const response = await fetch('/api/sync');
-            if (!response.ok) throw new Error('Failed to fetch attendance');
+            const summary = summaries[child.id];
+            if (!summary || summary.hours === 0) return;
 
-            const { attendance: allAttendance } = await response.json();
-            const childSessions = allAttendance.filter(a => {
-                return a.childId === child.id && (a.hours !== undefined || a.endTime);
-            });
-
-            let totalHours = 0;
-            childSessions.forEach(s => {
-                if (s.hours !== undefined) {
-                    totalHours += s.hours;
-                } else if (s.startTime && s.endTime) {
-                    const start = new Date(s.startTime);
-                    const end = new Date(s.endTime);
-                    const hours = (end - start) / (1000 * 60 * 60);
-                    totalHours += hours;
-                }
-            });
-
-            totalHours = Math.round(totalHours * 100) / 100;
+            // Pinned so the stored invoice and the PDF the parent receives
+            // always carry the same date, even across midnight.
+            const invoiceDate = new Date().toISOString();
 
             const invoiceData = {
                 childName: child.name,
                 parentEmail: child.email || '',
-                totalHours: totalHours,
+                totalHours: summary.hours,
                 hourlyRate: child.rate,
-                sessions: childSessions,
+                periodLabel: formatMonthKey(monthKey),
+                invoiceDate,
+                sessions: summary.sessions,
                 settings: settings
             };
 
@@ -155,7 +146,10 @@ export default function FinancesPage() {
                 childName: invoiceData.childName,
                 parentEmail: invoiceData.parentEmail,
                 totalHours: invoiceData.totalHours,
+                hourlyRate: invoiceData.hourlyRate,
                 totalCost: (invoiceData.totalHours * invoiceData.hourlyRate).toFixed(2),
+                periodLabel: invoiceData.periodLabel,
+                invoiceDate: invoiceData.invoiceDate,
                 pdfBase64: pdfDataUri,
                 fileName: fileName
             }),
@@ -169,6 +163,56 @@ export default function FinancesPage() {
         return await response.json();
     };
 
+    const handleResend = async (invoice) => {
+        const confirmed = window.confirm(
+            `Re-send the ${invoice.period} invoice for ${invoice.childName} to ${invoice.parentEmail}?`
+        );
+        if (!confirmed) return;
+
+        setResendState(prev => ({ ...prev, [invoice.id]: 'sending' }));
+
+        try {
+            const response = await fetch(`/api/invoices/${invoice.id}/resend`, { method: 'POST' });
+
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.error || 'Failed to re-send invoice');
+            }
+
+            setResendState(prev => ({ ...prev, [invoice.id]: 'sent' }));
+        } catch (error) {
+            console.error('Failed to re-send invoice:', error);
+            setResendState(prev => ({ ...prev, [invoice.id]: 'error' }));
+            alert(error.message);
+        }
+    };
+
+    const handleTogglePaid = async (invoice) => {
+        const nextStatus = invoice.status === 'Paid' ? 'Sent' : 'Paid';
+        setStatusPending(prev => ({ ...prev, [invoice.id]: true }));
+
+        try {
+            const response = await fetch(`/api/invoices/${invoice.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: nextStatus }),
+            });
+
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.error || 'Failed to update invoice');
+            }
+
+            const { invoice: updated } = await response.json();
+            setInvoices(prev => prev.map(item => (item.id === updated.id ? updated : item)));
+        } catch (error) {
+            console.error('Failed to update invoice status:', error);
+            alert(error.message);
+        } finally {
+            setStatusPending(prev => ({ ...prev, [invoice.id]: false }));
+        }
+    };
+
     const closePreviewModal = () => {
         setPreviewModal({
             isOpen: false,
@@ -177,6 +221,10 @@ export default function FinancesPage() {
             invoiceData: null
         });
     };
+
+    const outstandingTotal = invoices
+        .filter(inv => inv.status !== 'Paid')
+        .reduce((sum, inv) => sum + inv.amount, 0);
 
     const thisMonthTotal = (() => {
         const now = new Date();
@@ -218,10 +266,31 @@ export default function FinancesPage() {
 
             {activeTab === 'invoices' && (
                 <section>
+                    <div className="card row-between" style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div>
+                            <h3 style={{ margin: 0 }}>Billing month</h3>
+                            <p style={{ color: 'var(--ink-soft)', fontSize: '0.88rem', margin: '0.25rem 0 0' }}>
+                                An invoice covers only the hours logged in the month you pick.
+                            </p>
+                        </div>
+                        <select
+                            id="invoice-month"
+                            aria-label="Billing month"
+                            value={monthKey}
+                            onChange={(e) => setMonthKey(e.target.value)}
+                            style={{ marginBottom: 0, width: 'auto', minWidth: '12rem' }}
+                        >
+                            {monthOptions.map(key => (
+                                <option key={key} value={key}>{formatMonthKey(key)}</option>
+                            ))}
+                        </select>
+                    </div>
+
                     <div className="stack">
                         {children.map(child => {
                             const summary = summaries[child.id] || { hours: 0, cost: '0.00' };
                             const sum = nameHash(child.name);
+                            const hasHours = summary.hours > 0;
 
                             return (
                                 <div key={child.id} className="card row-between" style={{ marginBottom: 0, flexWrap: 'wrap' }}>
@@ -245,13 +314,24 @@ export default function FinancesPage() {
                                                     <MailWarning size={13} aria-hidden="true" /> No parent email yet
                                                 </span>
                                             )}
+                                            {!hasHours && (
+                                                <p style={{ color: 'var(--ink-soft)', fontSize: '0.82rem', marginTop: '0.15rem' }}>
+                                                    No hours logged this month
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                     <button
                                         onClick={() => handleGenerateInvoice(child)}
                                         className="btn btn-primary"
-                                        disabled={!child.email}
-                                        title={child.email ? `Preview invoice for ${child.name}` : 'Add a parent email first'}
+                                        disabled={!child.email || !hasHours}
+                                        title={
+                                            !child.email
+                                                ? 'Add a parent email first'
+                                                : !hasHours
+                                                    ? `No hours logged for ${child.name} in ${formatMonthKey(monthKey)}`
+                                                    : `Preview invoice for ${child.name}`
+                                        }
                                     >
                                         <Send size={17} /> Preview
                                     </button>
@@ -268,12 +348,23 @@ export default function FinancesPage() {
 
                     {/* Invoice History */}
                     <div style={{ marginTop: '2.5rem' }}>
-                        <div className="row-between" style={{ marginBottom: '1rem' }}>
-                            <h2 style={{ margin: 0 }}>Sent this month</h2>
+                        <div className="row-between" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            <h2 style={{ margin: 0 }}>Invoice history</h2>
                             {invoices.length > 0 && (
-                                <span className="stat-number" style={{ fontSize: '1.5rem', color: 'var(--leaf-deep)' }}>
-                                    £{thisMonthTotal.toFixed(2)}
-                                </span>
+                                <div className="row" style={{ gap: '1.5rem' }}>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span className="stat-number" style={{ fontSize: '1.35rem', color: 'var(--leaf-deep)', display: 'block' }}>
+                                            £{thisMonthTotal.toFixed(2)}
+                                        </span>
+                                        <span style={{ color: 'var(--ink-soft)', fontSize: '0.78rem' }}>sent this month</span>
+                                    </div>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <span className="stat-number" style={{ fontSize: '1.35rem', display: 'block' }}>
+                                            £{outstandingTotal.toFixed(2)}
+                                        </span>
+                                        <span style={{ color: 'var(--ink-soft)', fontSize: '0.78rem' }}>outstanding</span>
+                                    </div>
+                                </div>
                             )}
                         </div>
 
@@ -284,8 +375,14 @@ export default function FinancesPage() {
                             </div>
                         ) : (
                             <div className="stack" style={{ gap: '0.75rem' }}>
-                                {invoices.map(invoice => (
-                                    <div key={invoice.id} className="card row-between" style={{ padding: '1rem 1.25rem', marginBottom: 0 }}>
+                                {invoices.map(invoice => {
+                                    const rebuildable = canRebuildInvoice(invoice);
+                                    const sendState = resendState[invoice.id];
+                                    const isPaid = invoice.status === 'Paid';
+
+                                    return (
+                                    <div key={invoice.id} className="card" style={{ padding: '1rem 1.25rem', marginBottom: 0 }}>
+                                      <div className="row-between" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
                                         <div>
                                             <p style={{ fontWeight: 600, marginBottom: '0.2rem' }}>{invoice.childName}</p>
                                             <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
@@ -305,10 +402,50 @@ export default function FinancesPage() {
                                             <p className="stat-number" style={{ fontSize: '1.15rem', marginBottom: '0.3rem' }}>
                                                 £{invoice.amount.toFixed(2)}
                                             </p>
-                                            <span className="chip chip-leaf">Sent ✓</span>
+                                            <span className={`chip ${isPaid ? 'chip-leaf' : 'chip-sun'}`}>
+                                                {isPaid ? 'Paid ✓' : 'Awaiting payment'}
+                                            </span>
                                         </div>
+                                      </div>
+
+                                      <div className="row" style={{ marginTop: '0.9rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            <button
+                                                className="btn btn-outline"
+                                                onClick={() => handleTogglePaid(invoice)}
+                                                disabled={statusPending[invoice.id]}
+                                            >
+                                                {isPaid ? 'Mark as unpaid' : 'Mark as paid'}
+                                            </button>
+                                            {rebuildable && (<>
+                                            <a
+                                                className="btn btn-outline"
+                                                href={`/api/invoices/${invoice.id}/pdf`}
+                                            >
+                                                <Download size={16} /> Download
+                                            </a>
+                                            <button
+                                                className="btn btn-ghost"
+                                                onClick={() => handleResend(invoice)}
+                                                disabled={sendState === 'sending' || !invoice.parentEmail}
+                                                title={invoice.parentEmail ? 'Send this invoice again' : 'No parent email on this invoice'}
+                                            >
+                                                <RotateCcw size={16} />
+                                                {sendState === 'sending'
+                                                    ? 'Sending…'
+                                                    : sendState === 'sent'
+                                                        ? 'Sent again ✓'
+                                                        : 'Re-send'}
+                                            </button>
+                                            </>)}
+                                        </div>
+                                      {!rebuildable && (
+                                        <p style={{ color: 'var(--ink-soft)', fontSize: '0.8rem', marginTop: '0.7rem' }}>
+                                            Sent before invoices were re-sendable, so this one can&apos;t be rebuilt.
+                                        </p>
+                                      )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

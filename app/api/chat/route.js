@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import { saveChild, getChildren, logHours, getTodayHours, getSettings, logInvoice, deleteAttendance, getAttendance } from '@/lib/serverStore';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
-import { parseMonthString, filterAttendanceByMonth, calculateTotalHours } from '@/lib/monthHelper';
+import { buildInvoiceEmail } from '@/lib/invoiceEmail';
+import { parseMonthString, filterAttendanceByMonthKey, calculateTotalHours } from '@/lib/monthHelper';
 import { Resend } from 'resend';
 
 const openai = new OpenAI({
@@ -114,25 +115,39 @@ export async function POST(request) {
                         result = `Child not found or has no email address.`;
                     } else {
                         const settings = await getSettings();
-                        const { startDate, endDate, monthName } = parseMonthString(args.month || '');
+                        const { monthKey, monthName } = parseMonthString(args.month || '');
                         const allAttendance = await getAttendance();
-                        const monthAttendance = filterAttendanceByMonth(allAttendance.filter(a => a.childId === child.id), startDate, endDate);
+                        const monthAttendance = filterAttendanceByMonthKey(allAttendance.filter(a => a.childId === child.id), monthKey);
 
                         if (monthAttendance.length === 0) {
                             result = `No attendance records for ${monthName}.`;
                         } else {
                             const totalHours = calculateTotalHours(monthAttendance);
                             const totalCost = totalHours * child.rate;
-                            const pdfBytes = await generateInvoicePDF({ child, monthName, totalHours, rate: child.rate, totalCost, settings, sessions: monthAttendance });
+                            const invoiceDate = new Date().toISOString();
+                            const invoiceInput = { child, monthName, totalHours, rate: child.rate, totalCost, invoiceDate, settings, sessions: monthAttendance };
+                            const pdfBytes = await generateInvoicePDF(invoiceInput);
+                            const { html, text } = buildInvoiceEmail(invoiceInput);
                             const resend = new Resend(process.env.RESEND_API_KEY);
                             await resend.emails.send({
                                 from: `${settings.businessName || 'LittleHours'} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
                                 to: child.email,
                                 subject: `Invoice for ${child.name} - ${monthName}`,
-                                html: `<p>Invoice for ${monthName} is attached.</p>`,
+                                html,
+                                text,
                                 attachments: [{ filename: `Invoice_${child.name}_${monthName}.pdf`, content: Buffer.from(pdfBytes) }]
                             });
-                            await logInvoice({ childId: child.id, childName: child.name, parentEmail: child.email, amount: totalCost, period: monthName });
+                            await logInvoice({
+                                childId: child.id,
+                                childName: child.name,
+                                parentEmail: child.email,
+                                amount: totalCost,
+                                period: monthName,
+                                totalHours,
+                                hourlyRate: child.rate,
+                                invoiceDate,
+                                settings
+                            });
                             result = `Invoice sent to ${child.email} for ${monthName}.`;
                         }
                     }
