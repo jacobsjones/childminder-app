@@ -120,11 +120,12 @@ export default function FinancesPage() {
                 settings: settings
             };
 
-            const { pdfDataUri, fileName } = generateInvoicePDF(invoiceData);
+            const { pdfDataUri, pdfBlob, fileName } = generateInvoicePDF(invoiceData);
 
             setPreviewModal({
                 isOpen: true,
                 pdfDataUri,
+                pdfBlob,
                 fileName,
                 invoiceData
             });
@@ -508,6 +509,7 @@ export default function FinancesPage() {
                 isOpen={previewModal.isOpen}
                 onClose={closePreviewModal}
                 pdfDataUri={previewModal.pdfDataUri}
+                pdfBlob={previewModal.pdfBlob}
                 fileName={previewModal.fileName}
                 invoiceData={previewModal.invoiceData}
                 onSendEmail={handleSendEmail}
