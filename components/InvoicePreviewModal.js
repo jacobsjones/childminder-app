@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { X, Send, Download } from 'lucide-react';
+import { savePdfFile } from '@/lib/savePdf';
 
 export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBlob, fileName, invoiceData, onSendEmail }) {
     const [isSending, setIsSending] = useState(false);
@@ -26,31 +27,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBl
         }
     };
 
-    const handleDownload = async () => {
-        const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-        // Phones (especially the home-screen app on iOS) ignore <a download>,
-        // so hand the file to the native share sheet: Save to Files, Print, Mail…
-        const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
-        if (isTouchDevice && navigator.canShare?.({ files: [file] })) {
-            try {
-                await navigator.share({ files: [file], title: fileName });
-                return;
-            } catch (error) {
-                if (error.name === 'AbortError') return; // user closed the share sheet
-                console.error('Error sharing invoice:', error);
-            }
-        }
-
-        const url = URL.createObjectURL(file);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    };
+    const handleDownload = () => savePdfFile(new File([pdfBlob], fileName, { type: 'application/pdf' }));
 
     return (
         <div className="modal-overlay" onClick={onClose}>

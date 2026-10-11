@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getInvoice, updateInvoiceStatus } from '@/lib/serverStore';
+import { getInvoice, updateInvoiceStatus, deleteInvoice } from '@/lib/serverStore';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +48,26 @@ export async function PATCH(request, { params }) {
         console.error('[Invoice PATCH] Error:', error);
         return NextResponse.json(
             { error: 'Failed to update invoice', details: error.message },
+            { status: 500 }
+        );
+    }
+}
+
+/** Remove an invoice from the history. */
+export async function DELETE(request, { params }) {
+    try {
+        const { id } = await params;
+        const deleted = await deleteInvoice(id);
+
+        if (!deleted) {
+            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('[Invoice DELETE] Error:', error);
+        return NextResponse.json(
+            { error: 'Failed to delete invoice', details: error.message },
             { status: 500 }
         );
     }

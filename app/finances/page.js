@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Camera, Send, MailWarning, Download, RotateCcw } from 'lucide-react';
+import { Camera, Send, MailWarning, Download, RotateCcw, Trash2 } from 'lucide-react';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import {
     availableMonthKeys,
@@ -10,7 +10,8 @@ import {
     formatMonthKey,
 } from '@/lib/monthHelper';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
-import { canRebuildInvoice } from '@/lib/storedInvoice';
+import { canRebuildInvoice, storedInvoiceFileName } from '@/lib/storedInvoice';
+import { savePdfFile } from '@/lib/savePdf';
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
@@ -37,6 +38,10 @@ export default function FinancesPage() {
     // Per-invoice re-send and status state, keyed by invoice id
     const [resendState, setResendState] = useState({});
     const [statusPending, setStatusPending] = useState({});
+    const [deletePending, setDeletePending] = useState({});
+    // 'loading' while a past invoice is being rebuilt, or the File once it is
+    // ready but still needs a fresh tap to open the share sheet
+    const [downloadState, setDownloadState] = useState({});
 
     const loadData = useCallback(async () => {
         try {
@@ -211,6 +216,62 @@ export default function FinancesPage() {
             alert(error.message);
         } finally {
             setStatusPending(prev => ({ ...prev, [invoice.id]: false }));
+        }
+    };
+
+    const handleDownloadPast = async (invoice) => {
+        const clear = () => setDownloadState(prev => ({ ...prev, [invoice.id]: undefined }));
+
+        try {
+            let file = downloadState[invoice.id];
+
+            if (!(file instanceof File)) {
+                setDownloadState(prev => ({ ...prev, [invoice.id]: 'loading' }));
+
+                const response = await fetch(`/api/invoices/${invoice.id}/pdf`);
+                if (!response.ok) {
+                    const body = await response.json().catch(() => ({}));
+                    throw new Error(body.error || 'Failed to download invoice');
+                }
+
+                file = new File([await response.blob()], storedInvoiceFileName(invoice), { type: 'application/pdf' });
+            }
+
+            const saved = await savePdfFile(file);
+            if (saved) {
+                clear();
+            } else {
+                setDownloadState(prev => ({ ...prev, [invoice.id]: file }));
+            }
+        } catch (error) {
+            console.error('Failed to download invoice:', error);
+            clear();
+            alert(error.message);
+        }
+    };
+
+    const handleDelete = async (invoice) => {
+        const confirmed = window.confirm(
+            `Delete the ${invoice.period} invoice for ${invoice.childName} from your history? This can't be undone.`
+        );
+        if (!confirmed) return;
+
+        setDeletePending(prev => ({ ...prev, [invoice.id]: true }));
+
+        try {
+            const response = await fetch(`/api/invoices/${invoice.id}`, { method: 'DELETE' });
+
+            if (!response.ok) {
+                const body = await response.json().catch(() => ({}));
+                throw new Error(body.error || 'Failed to delete invoice');
+            }
+
+            setInvoices(prev => prev.filter(item => item.id !== invoice.id));
+        } catch (error) {
+            console.error('Failed to delete invoice:', error);
+            alert(error.message);
+        } finally {
+            setDeletePending(prev => ({ ...prev, [invoice.id]: false }));
         }
     };
 
@@ -418,12 +479,18 @@ export default function FinancesPage() {
                                                 {isPaid ? 'Mark as unpaid' : 'Mark as paid'}
                                             </button>
                                             {rebuildable && (<>
-                                            <a
+                                            <button
                                                 className="btn btn-outline"
-                                                href={`/api/invoices/${invoice.id}/pdf`}
+                                                onClick={() => handleDownloadPast(invoice)}
+                                                disabled={downloadState[invoice.id] === 'loading'}
                                             >
-                                                <Download size={16} /> Download
-                                            </a>
+                                                <Download size={16} />
+                                                {downloadState[invoice.id] === 'loading'
+                                                    ? 'Preparing…'
+                                                    : downloadState[invoice.id]
+                                                        ? 'Tap to save'
+                                                        : 'Download'}
+                                            </button>
                                             <button
                                                 className="btn btn-ghost"
                                                 onClick={() => handleResend(invoice)}
@@ -438,6 +505,15 @@ export default function FinancesPage() {
                                                         : 'Re-send'}
                                             </button>
                                             </>)}
+                                            <button
+                                                className="btn btn-danger-soft"
+                                                onClick={() => handleDelete(invoice)}
+                                                disabled={deletePending[invoice.id]}
+                                                style={{ marginLeft: 'auto' }}
+                                            >
+                                                <Trash2 size={16} />
+                                                {deletePending[invoice.id] ? 'Deleting…' : 'Delete'}
+                                            </button>
                                         </div>
                                       {!rebuildable && (
                                         <p style={{ color: 'var(--ink-soft)', fontSize: '0.8rem', marginTop: '0.7rem' }}>
