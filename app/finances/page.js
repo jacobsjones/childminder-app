@@ -8,12 +8,26 @@ import {
     currentMonthKey,
     filterAttendanceByMonthKey,
     formatMonthKey,
+    parseMonthString,
 } from '@/lib/monthHelper';
 import InvoicePreviewModal from '@/components/InvoicePreviewModal';
 import { canRebuildInvoice, storedInvoiceFileName } from '@/lib/storedInvoice';
 import { savePdfFile } from '@/lib/savePdf';
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+// How many billing months the 'recent' history filter covers, this one included
+const RECENT_MONTHS = 3;
+const HISTORY_FILTER_KEY = 'invoiceHistoryFilter';
+
+/** The billing month an invoice covers, as 'YYYY-MM'. */
+const invoiceMonthKey = (invoice) => parseMonthString(invoice.period).monthKey;
+
+const monthsAgoKey = (count) => {
+    const now = new Date();
+    const date = new Date(now.getFullYear(), now.getMonth() - count, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
 
 export default function FinancesPage() {
     const [activeTab, setActiveTab] = useState('invoices');
@@ -42,6 +56,31 @@ export default function FinancesPage() {
     // 'loading' while a past invoice is being rebuilt, or the File once it is
     // ready but still needs a fresh tap to open the share sheet
     const [downloadState, setDownloadState] = useState({});
+
+    // Invoice history filters: 'recent', 'all', or a single 'YYYY-MM'
+    const [historyMonth, setHistoryMonth] = useState('recent');
+    const [hidePaid, setHidePaid] = useState(false);
+
+    // Remember the history filters on this device
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(HISTORY_FILTER_KEY));
+            if (saved?.month) setHistoryMonth(saved.month);
+            if (typeof saved?.hidePaid === 'boolean') setHidePaid(saved.hidePaid);
+        } catch {
+            // Storage unavailable or empty: keep the defaults
+        }
+    }, []);
+
+    const updateHistoryFilter = (month, paidHidden) => {
+        setHistoryMonth(month);
+        setHidePaid(paidHidden);
+        try {
+            localStorage.setItem(HISTORY_FILTER_KEY, JSON.stringify({ month, hidePaid: paidHidden }));
+        } catch {
+            // Storage unavailable: the filter still applies for this visit
+        }
+    };
 
     const loadData = useCallback(async () => {
         try {
@@ -275,6 +314,22 @@ export default function FinancesPage() {
         }
     };
 
+    const historyMonthOptions = useMemo(
+        () => [...new Set(invoices.map(invoiceMonthKey))].sort().reverse(),
+        [invoices]
+    );
+
+    const visibleInvoices = useMemo(() => {
+        const oldestRecent = monthsAgoKey(RECENT_MONTHS - 1);
+        return invoices.filter(invoice => {
+            if (hidePaid && invoice.status === 'Paid') return false;
+            const key = invoiceMonthKey(invoice);
+            if (historyMonth === 'recent') return key >= oldestRecent;
+            if (historyMonth === 'all') return true;
+            return key === historyMonth;
+        });
+    }, [invoices, historyMonth, hidePaid]);
+
     const closePreviewModal = () => {
         setPreviewModal({
             isOpen: false,
@@ -430,14 +485,56 @@ export default function FinancesPage() {
                             )}
                         </div>
 
+                        {invoices.length > 0 && (
+                            <div className="row" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.6rem' }}>
+                                <select
+                                    aria-label="Show invoices from"
+                                    value={historyMonth}
+                                    onChange={(e) => updateHistoryFilter(e.target.value, hidePaid)}
+                                    style={{ marginBottom: 0, width: 'auto', minWidth: '11rem' }}
+                                >
+                                    <option value="recent">Last {RECENT_MONTHS} months</option>
+                                    <option value="all">All months</option>
+                                    {historyMonthOptions.map(key => (
+                                        <option key={key} value={key}>{formatMonthKey(key)}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    className={`chip chip-btn ${hidePaid ? 'chip-leaf' : 'chip-plain'}`}
+                                    aria-pressed={hidePaid}
+                                    onClick={() => updateHistoryFilter(historyMonth, !hidePaid)}
+                                    style={{ padding: '0.55rem 1rem', minHeight: '44px' }}
+                                >
+                                    {hidePaid ? '✓ Hiding paid' : 'Hide paid'}
+                                </button>
+                                <span style={{ color: 'var(--ink-soft)', fontSize: '0.82rem' }}>
+                                    Showing {visibleInvoices.length} of {invoices.length}
+                                </span>
+                            </div>
+                        )}
+
                         {invoices.length === 0 ? (
                             <div className="card empty-state">
                                 <span className="empty-emoji" aria-hidden="true">💌</span>
                                 <p style={{ margin: '0 auto' }}>Nothing sent yet — your invoice history will land here.</p>
                             </div>
+                        ) : visibleInvoices.length === 0 ? (
+                            <div className="card empty-state">
+                                <span className="empty-emoji" aria-hidden="true">🌿</span>
+                                <p style={{ margin: '0 auto' }}>No invoices match these filters.</p>
+                                <button
+                                    type="button"
+                                    className="btn btn-ghost"
+                                    onClick={() => updateHistoryFilter('all', false)}
+                                    style={{ margin: '0.5rem auto 0' }}
+                                >
+                                    Show all invoices
+                                </button>
+                            </div>
                         ) : (
                             <div className="stack" style={{ gap: '0.75rem' }}>
-                                {invoices.map(invoice => {
+                                {visibleInvoices.map(invoice => {
                                     const rebuildable = canRebuildInvoice(invoice);
                                     const sendState = resendState[invoice.id];
                                     const isPaid = invoice.status === 'Paid';
