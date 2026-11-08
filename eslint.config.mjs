@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Capacitor iOS shell (generated native project and offline page).
+    "ios/**",
+    "capacitor-www/**",
   ]),
 ]);
 
