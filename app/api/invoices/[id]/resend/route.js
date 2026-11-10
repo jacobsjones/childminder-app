@@ -4,6 +4,9 @@ import { getInvoice, getSettings } from '@/lib/serverStore';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
 import { canRebuildInvoice, invoiceInputFromRecord, storedInvoiceFileName } from '@/lib/storedInvoice';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
+import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 
@@ -16,18 +19,16 @@ export const runtime = 'nodejs';
  */
 export async function POST(request, { params }) {
     try {
+        const user = await requireUser();
+        const { id } = await params;
+        const invoice = await getInvoice(user.id, id);
+        if (!invoice) throw new NotFoundError('Invoice not found');
+
         if (!process.env.RESEND_API_KEY) {
             return NextResponse.json(
                 { error: 'Email service is not configured on the server.' },
                 { status: 500 }
             );
-        }
-
-        const { id } = await params;
-        const invoice = await getInvoice(id);
-
-        if (!invoice) {
-            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
         }
 
         if (!invoice.parentEmail) {
@@ -48,7 +49,7 @@ export async function POST(request, { params }) {
         // The sender identity follows current settings even though the document
         // itself is rebuilt from the snapshot — mail must come from the address
         // that is verified today.
-        const settings = await getSettings();
+        const settings = await getSettings(user.id);
         const businessName = settings.businessName || invoice.settingsSnapshot?.businessName || 'LittleHours';
 
         const emailOptions = {
@@ -73,11 +74,7 @@ export async function POST(request, { params }) {
 
         return NextResponse.json({ success: true, messageId: data.id });
     } catch (error) {
-        console.error('[Invoice resend] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to re-send invoice', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Invoice resend', 'Failed to re-send invoice');
     }
 }
 

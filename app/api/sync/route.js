@@ -1,23 +1,18 @@
 // API endpoint to sync server data to client
 import { NextResponse } from 'next/server';
 import { getChildren, getAttendance } from '@/lib/serverStore';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
     try {
-        const children = await getChildren();
-        const attendance = await getAttendance();
-
-        return NextResponse.json({
-            children,
-            attendance,
-        });
+        const user = await requireUser();
+        const children = await getChildren(user.id);
+        const attendance = await getAttendance(user.id);
+        return NextResponse.json({ children, attendance });
     } catch (error) {
-        console.error('[Sync API] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to sync data', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Sync API', 'Failed to sync data');
     }
 }

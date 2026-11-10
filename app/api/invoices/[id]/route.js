@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getInvoice, updateInvoiceStatus, deleteInvoice } from '@/lib/serverStore';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
+import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 
@@ -7,26 +10,20 @@ const ALLOWED_STATUSES = ['Sent', 'Paid'];
 
 export async function GET(request, { params }) {
     try {
+        const user = await requireUser();
         const { id } = await params;
-        const invoice = await getInvoice(id);
-
-        if (!invoice) {
-            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-        }
-
+        const invoice = await getInvoice(user.id, id);
+        if (!invoice) throw new NotFoundError('Invoice not found');
         return NextResponse.json(invoice);
     } catch (error) {
-        console.error('[Invoice GET] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to get invoice', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Invoice GET', 'Failed to get invoice');
     }
 }
 
 /** Mark an invoice paid or back to unpaid. */
 export async function PATCH(request, { params }) {
     try {
+        const user = await requireUser();
         const { id } = await params;
         const { status } = await request.json();
 
@@ -37,38 +34,22 @@ export async function PATCH(request, { params }) {
             );
         }
 
-        const invoice = await updateInvoiceStatus(id, status);
-
-        if (!invoice) {
-            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-        }
-
+        const invoice = await updateInvoiceStatus(user.id, id, status);
+        if (!invoice) throw new NotFoundError('Invoice not found');
         return NextResponse.json({ success: true, invoice });
     } catch (error) {
-        console.error('[Invoice PATCH] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to update invoice', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Invoice PATCH', 'Failed to update invoice');
     }
 }
 
 /** Remove an invoice from the history. */
 export async function DELETE(request, { params }) {
     try {
+        const user = await requireUser();
         const { id } = await params;
-        const deleted = await deleteInvoice(id);
-
-        if (!deleted) {
-            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-        }
-
+        if (!(await deleteInvoice(user.id, id))) throw new NotFoundError('Invoice not found');
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Invoice DELETE] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to delete invoice', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Invoice DELETE', 'Failed to delete invoice');
     }
 }

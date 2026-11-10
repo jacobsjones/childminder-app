@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
-import { saveChild, getChildren, logHours, getTodayHours, getSettings, logInvoice, deleteAttendance, getAttendance } from '@/lib/serverStore';
+import { saveChild, getChildren, logHours, getSettings, logInvoice, getAttendance } from '@/lib/serverStore';
+import { requireUser } from '@/lib/requireUser';
+import { AuthError } from '@/lib/errors';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
 import { parseMonthString, filterAttendanceByMonthKey, calculateTotalHours } from '@/lib/monthHelper';
@@ -14,6 +16,7 @@ export const maxDuration = 60;
 
 export async function POST(request) {
     try {
+        const user = await requireUser();
         const { messages } = await request.json();
 
         const response = await openai.chat.completions.create({
@@ -94,29 +97,29 @@ export async function POST(request) {
                 let result = '';
 
                 if (toolCall.function.name === 'createChild') {
-                    await saveChild({ name: args.name, rate: args.rate, email: '' });
+                    await saveChild(user.id, { name: args.name, rate: args.rate, email: '' });
                     result = `Added ${args.name} with rate £${args.rate}/hr.`;
                 } else if (toolCall.function.name === 'logHours') {
-                    const children = await getChildren();
+                    const children = await getChildren(user.id);
                     const child = children.find(c => c.name.toLowerCase().includes(args.name.toLowerCase()));
                     if (child) {
-                        await logHours(child.id, args.hours);
+                        await logHours(user.id, child.id, args.hours);
                         result = `Logged ${args.hours} hours for ${child.name}.`;
                     } else {
                         result = `Child ${args.name} not found.`;
                     }
                 } else if (toolCall.function.name === 'listChildren') {
-                    const children = await getChildren();
+                    const children = await getChildren(user.id);
                     result = children.length ? children.map(c => `${c.name} (£${c.rate}/hr)`).join(', ') : 'No children found.';
                 } else if (toolCall.function.name === 'sendInvoice') {
-                    const children = await getChildren();
+                    const children = await getChildren(user.id);
                     const child = children.find(c => c.name.toLowerCase().includes(args.name.toLowerCase()));
                     if (!child || !child.email) {
                         result = `Child not found or has no email address.`;
                     } else {
-                        const settings = await getSettings();
+                        const settings = await getSettings(user.id);
                         const { monthKey, monthName } = parseMonthString(args.month || '');
-                        const allAttendance = await getAttendance();
+                        const allAttendance = await getAttendance(user.id);
                         const monthAttendance = filterAttendanceByMonthKey(allAttendance.filter(a => a.childId === child.id), monthKey);
 
                         if (monthAttendance.length === 0) {
@@ -132,12 +135,13 @@ export async function POST(request) {
                             await resend.emails.send({
                                 from: `${settings.businessName || 'LittleHours'} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
                                 to: child.email,
+                                ...(settings.businessEmail ? { replyTo: settings.businessEmail } : {}),
                                 subject: `Invoice for ${child.name} - ${monthName}`,
                                 html,
                                 text,
                                 attachments: [{ filename: `Invoice_${child.name}_${monthName}.pdf`, content: Buffer.from(pdfBytes) }]
                             });
-                            await logInvoice({
+                            await logInvoice(user.id, {
                                 childId: child.id,
                                 childName: child.name,
                                 parentEmail: child.email,
@@ -177,6 +181,9 @@ export async function POST(request) {
         return new Response(JSON.stringify({ content: assistantMessage.content }));
 
     } catch (error) {
+        if (error instanceof AuthError) {
+            return new Response(JSON.stringify({ error: 'Not signed in' }), { status: 401 });
+        }
         console.error('Chat error:', error);
         return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     }

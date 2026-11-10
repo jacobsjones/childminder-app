@@ -1,41 +1,31 @@
 import { NextResponse } from 'next/server';
 import { getSettings, saveSettings } from '@/lib/serverStore';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
     try {
-        const settings = await getSettings();
-        return NextResponse.json(settings);
+        const user = await requireUser();
+        return NextResponse.json(await getSettings(user.id));
     } catch (error) {
-        console.error('[Settings API GET] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to get settings', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Settings API GET', 'Failed to get settings');
     }
 }
 
 export async function POST(request) {
     try {
+        const user = await requireUser();
         const settingsData = await request.json();
 
         if (!settingsData) {
-            return NextResponse.json(
-                { error: 'Missing settings data' },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'Missing settings data' }, { status: 400 });
         }
 
-        // Save to server-side storage
-        await saveSettings(settingsData);
-
+        await saveSettings(user.id, settingsData);
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('[Settings API POST] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to save settings', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Settings API POST', 'Failed to save settings');
     }
 }

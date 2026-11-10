@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
 import { getDashboardData } from '@/lib/serverStore';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
     try {
-        const data = await getDashboardData();
-        return NextResponse.json({ children: data });
+        const user = await requireUser();
+        return NextResponse.json({ children: await getDashboardData(user.id) });
     } catch (error) {
-        console.error('[Dashboard API] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to load dashboard data', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Dashboard API', 'Failed to load dashboard data');
     }
 }

@@ -2,18 +2,19 @@ import { NextResponse } from 'next/server';
 import { getInvoice } from '@/lib/serverStore';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { canRebuildInvoice, invoiceInputFromRecord, storedInvoiceFileName } from '@/lib/storedInvoice';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
+import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 
 /** Rebuild a past invoice as a PDF and return it for download. */
 export async function GET(request, { params }) {
     try {
+        const user = await requireUser();
         const { id } = await params;
-        const invoice = await getInvoice(id);
-
-        if (!invoice) {
-            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-        }
+        const invoice = await getInvoice(user.id, id);
+        if (!invoice) throw new NotFoundError('Invoice not found');
 
         if (!canRebuildInvoice(invoice)) {
             return NextResponse.json(
@@ -31,10 +32,6 @@ export async function GET(request, { params }) {
             },
         });
     } catch (error) {
-        console.error('[Invoice PDF] Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to rebuild invoice', details: error.message },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Invoice PDF', 'Failed to rebuild invoice');
     }
 }

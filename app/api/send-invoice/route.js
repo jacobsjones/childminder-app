@@ -2,9 +2,14 @@ import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
 import { logInvoice, getChildren, getSettings } from '@/lib/serverStore';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
+import { requireUser } from '@/lib/requireUser';
+import { errorResponse } from '@/lib/apiErrors';
+
+export const runtime = 'nodejs';
 
 export async function POST(request) {
     try {
+        const user = await requireUser();
         if (!process.env.RESEND_API_KEY) {
             console.error('RESEND_API_KEY is missing');
             return NextResponse.json(
@@ -36,7 +41,7 @@ export async function POST(request) {
         });
 
         // Get settings for branding
-        const settings = await getSettings();
+        const settings = await getSettings(user.id);
         const businessName = settings.businessName || 'LittleHours';
         const businessEmail = settings.businessEmail;
 
@@ -74,11 +79,11 @@ export async function POST(request) {
         const data = await resend.emails.send(emailOptions);
 
         // Log the invoice to history
-        const children = await getChildren();
+        const children = await getChildren(user.id);
         const child = children.find(c => c.name === childName);
 
         if (child) {
-            await logInvoice({
+            await logInvoice(user.id, {
                 childId: child.id,
                 childName: childName,
                 parentEmail: parentEmail,
@@ -98,13 +103,6 @@ export async function POST(request) {
         });
 
     } catch (error) {
-        console.error('Error sending invoice email:', error);
-        return NextResponse.json(
-            {
-                error: 'Failed to send invoice email',
-                details: error.message
-            },
-            { status: 500 }
-        );
+        return errorResponse(error, 'Send invoice', 'Failed to send invoice email');
     }
 }
