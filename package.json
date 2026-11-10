@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate": "node --env-file=.env.local --import tsx scripts/migrate.mjs",
+    "test:isolation": "node --env-file=.env.local --test tests/isolation.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.18",
@@ -15,12 +17,15 @@
     "@capacitor/ios": "^8.6.0",
     "@vercel/postgres": "^0.10.0",
     "ai": "^6.0.49",
+    "better-auth": "^1.7.18",
+    "jose": "^6.2.17",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.562.0",
     "next": "16.1.1",
     "openai": "^6.16.0",
     "pdf-lib": "^1.17.1",
+    "pg": "^8.23.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "resend": "^6.6.0",
@@ -33,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
