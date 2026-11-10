@@ -41,8 +41,16 @@ export default function ForgotPasswordForm() {
                 setBusy(false);
                 return;
             }
-            const { error: signInError } = await authClient.signIn.email({ email, password, rememberMe: true });
-            window.location.href = signInError ? '/sign-in' : '/';
+            // The password is changed and the code used up from here on, so if
+            // signing in fails the only useful place to go is the sign-in page.
+            let signedIn = false;
+            try {
+                const { error: signInError } = await authClient.signIn.email({ email, password, rememberMe: true });
+                signedIn = !signInError;
+            } catch {
+                signedIn = false;
+            }
+            window.location.href = signedIn ? '/' : '/sign-in?reset=1';
         }, (message) => { setError(message); setBusy(false); });
     };
 

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { authClient } from '@/lib/authClient';
 import AuthShell, { FormError } from '@/components/auth/AuthShell';
@@ -11,6 +11,12 @@ export default function SignInForm({ appleEnabled }) {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
+    // Read from the address bar on the client only, so the page can stay prerendered.
+    const passwordWasReset = useSyncExternalStore(
+        () => () => {},
+        () => new URLSearchParams(window.location.search).get('reset') === '1',
+        () => false,
+    );
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -32,6 +38,11 @@ export default function SignInForm({ appleEnabled }) {
 
     return (
         <AuthShell title="Welcome back" subtitle="Sign in to your LittleHours account.">
+            {passwordWasReset && !error && (
+                <p role="status" style={{ marginBottom: '1rem', fontSize: '0.95rem' }}>
+                    Password changed. Sign in with your new password.
+                </p>
+            )}
             <FormError message={error} />
 
             {appleEnabled && <AppleSignInButton onError={setError} />}

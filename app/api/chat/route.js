@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { saveChild, getChildren, logHours, getSettings, logInvoice, getAttendance } from '@/lib/serverStore';
 import { requireUser } from '@/lib/requireUser';
-import { AuthError } from '@/lib/errors';
+import { errorResponse } from '@/lib/apiErrors';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
 import { parseMonthString, filterAttendanceByMonthKey, calculateTotalHours } from '@/lib/monthHelper';
@@ -132,7 +132,7 @@ export async function POST(request) {
                             const pdfBytes = await generateInvoicePDF(invoiceInput);
                             const { html, text } = buildInvoiceEmail(invoiceInput);
                             const resend = new Resend(process.env.RESEND_API_KEY);
-                            await resend.emails.send({
+                            const { error: sendError } = await resend.emails.send({
                                 from: `${settings.businessName || 'LittleHours'} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
                                 to: child.email,
                                 ...(settings.businessEmail ? { replyTo: settings.businessEmail } : {}),
@@ -141,18 +141,23 @@ export async function POST(request) {
                                 text,
                                 attachments: [{ filename: `Invoice_${child.name}_${monthName}.pdf`, content: Buffer.from(pdfBytes) }]
                             });
-                            await logInvoice(user.id, {
-                                childId: child.id,
-                                childName: child.name,
-                                parentEmail: child.email,
-                                amount: totalCost,
-                                period: monthName,
-                                totalHours,
-                                hourlyRate: child.rate,
-                                invoiceDate,
-                                settings
-                            });
-                            result = `Invoice sent to ${child.email} for ${monthName}.`;
+                            if (sendError) {
+                                console.error('[Chat] Resend rejected the invoice email:', sendError);
+                                result = `The invoice email could not be sent, so nothing was sent or recorded.`;
+                            } else {
+                                await logInvoice(user.id, {
+                                    childId: child.id,
+                                    childName: child.name,
+                                    parentEmail: child.email,
+                                    amount: totalCost,
+                                    period: monthName,
+                                    totalHours,
+                                    hourlyRate: child.rate,
+                                    invoiceDate,
+                                    settings
+                                });
+                                result = `Invoice sent to ${child.email} for ${monthName}.`;
+                            }
                         }
                     }
                 }
@@ -181,10 +186,6 @@ export async function POST(request) {
         return new Response(JSON.stringify({ content: assistantMessage.content }));
 
     } catch (error) {
-        if (error instanceof AuthError) {
-            return new Response(JSON.stringify({ error: 'Not signed in' }), { status: 401 });
-        }
-        console.error('Chat error:', error);
-        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+        return errorResponse(error, 'Chat');
     }
 }

@@ -26,6 +26,12 @@ async function findUserId(email) {
     return rows[0]?.id ?? null;
 }
 
+// You vouch for her email, so Sign in with Apple using the same address can link to this account.
+async function markEmailVerified(userId) {
+    await sql`UPDATE "user" SET "emailVerified" = true WHERE id = ${userId}`;
+    console.log('Marked her email as verified (so Sign in with Apple can link to this account).');
+}
+
 let muted = false;
 const rl = createInterface({
     input: process.stdin,
@@ -95,6 +101,7 @@ async function main() {
         const existing = rows[0];
         console.log(`Account already exists for ${values.email} (name: ${existing.name}); reusing it.`);
         console.log(`It already owns ${existing.children} children and ${existing.invoices} invoices.`);
+        if (!values.finalize) await markEmailVerified(userId);
     } else {
         if (!values.name) throw new Error('--name is required to create the account');
         const password = await askPassword();
@@ -103,6 +110,7 @@ async function main() {
         });
         userId = result.user.id;
         console.log(`Created account for ${values.email}.`);
+        await markEmailVerified(userId);
     }
 
     const claimed = await claimUnownedData(userId);

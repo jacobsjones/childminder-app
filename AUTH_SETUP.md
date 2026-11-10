@@ -7,13 +7,17 @@ Set these in the **Production** environment. `RESEND_API_KEY` and `RESEND_FROM_E
 | Name | Production value |
 |---|---|
 | `BETTER_AUTH_SECRET` | a random 32-byte base64 string (different from your local one) |
-| `BETTER_AUTH_URL` | `https://childminder-app.vercel.app` (Production only; previews use their own URL automatically) |
+| `BETTER_AUTH_URL` | `https://childminder-app.vercel.app` (Production only) |
 | `ADMIN_SECRET` | a new random string; only needed to call `POST /api/init-db` |
 | `APPLE_CLIENT_ID` | your Services ID, e.g. `com.jacobjones.littlehours.web` |
 | `APPLE_TEAM_ID` | your 10-character Team ID |
 | `APPLE_KEY_ID` | the Key ID of the Sign in with Apple key |
 | `APPLE_PRIVATE_KEY` | the full contents of the downloaded `.p8` file |
 | `APPLE_APP_BUNDLE_IDENTIFIER` | `com.jacobjones.littlehours` |
+
+Preview deployments are not supported for signing in: no preview secret is set, and previews are also behind the Vercel login. Test accounts on the production site or locally.
+
+After the deploy, sign-in rate-limit counters are kept in the database. The `create-owner` run in step 3 of the release runbook creates the table as part of its migration; nothing extra to do.
 
 Generate random values with:
 
@@ -70,7 +74,8 @@ In the commands, replace `sue@example.com` and `Sue Example` with her real email
    - It asks for her password twice (at least 8 characters). Pick it, and tell her.
    - If her account already exists it does not ask for a password. It prints the account name and how many children and invoices it already owns; check these match what she has.
    - Check that the `Claimed ...` counts match what she has in the app.
-4. **Deploy**: merge to `main` (or `vercel deploy --prod`).
+   - **Rehearse the password prompt first (optional but recommended).** In PowerShell, against the DEV database, run the same command with `--env-file=.env.local`, a throwaway email like `prompt-check@example.test` and `--name "Prompt Check"`. Type `YES`, check the password is hidden as you type, then press Ctrl+C at the second password prompt. (The rehearsal owner `rehearsal-owner@example.test` already exists, so it would not ask for a password.)
+4. **Deploy**. First check Vercel → Project → Settings → Deployment Protection is **Standard Protection** (it is today). It keeps old deployment URLs, which run the old code with no sign-in, private. Then merge to `main` (or `vercel deploy --prod`).
 5. **Finalize**:
 
    ```
@@ -84,9 +89,20 @@ In the commands, replace `sue@example.com` and `Sue Example` with her real email
 ## If something goes wrong
 
 - **Before step 4 (deploy)**: nothing to undo for users. The old code ignores the new columns and tables.
-- **After the deploy, before step 5 (finalize)**: in Vercel → Deployments, open the previous production deployment and choose **Promote** (or **Instant Rollback**). The database can stay as it is.
-- **After step 5 (finalize)**: the old code can no longer add children, invoices or settings, because every row must now have an owner. Either fix the problem in the new code and redeploy, or roll back both:
-  1. Promote the previous deployment in Vercel, as above.
-  2. Restore the database from the backup: in Neon → Branches → `main` → **Restore**, choose the `backup-before-accounts` branch. (Alternatively, point the database URLs in the Vercel environment variables at the `backup-before-accounts` branch and redeploy.)
+- **After the deploy, before step 5 (finalize)**: first check nobody else has signed up yet, because the old code shows everyone's data to everyone:
 
-  **Warning:** restoring loses everything entered since the backup was taken.
+  ```
+  node --env-file=.env.production-db --input-type=module -e "import { sql } from '@vercel/postgres'; console.log((await sql.query('SELECT count(*) FROM \x22user\x22')).rows[0])"
+  ```
+
+  Expect `count: '1'`. If it is more than 1, do **not** roll back; fix forward in the new code. If it is 1, in Vercel → Deployments open the previous production deployment and choose **Promote** (or **Instant Rollback**). The database can stay as it is.
+- **After step 5 (finalize)**: the old code can no longer add children, invoices or settings, because every row must now have an owner. Either fix the problem in the new code and redeploy, or roll back (same account check as above first; if anyone else has signed up, fix forward):
+  1. Allow unowned rows again (nothing is lost):
+
+     ```
+     node --env-file=.env.production-db --input-type=module -e "import { sql } from '@vercel/postgres'; for (const t of ['children', 'invoices', 'settings']) await sql.query('ALTER TABLE ' + t + ' ALTER COLUMN user_id DROP NOT NULL'); console.log('done')"
+     ```
+
+  2. Promote the previous deployment in Vercel, as above.
+  3. Last resort only: restore the database from the backup. In Neon, use the restore / reset-from-branch option on the `main` branch, choosing `backup-before-accounts` (the exact label may differ). **Warning:** this loses everything entered since the backup was taken.
+- **If `--finalize` refuses**: the new app works fine without finalize. Stop and investigate; it lists how many unowned rows are left.

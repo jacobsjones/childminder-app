@@ -70,7 +70,10 @@ export async function POST(request, { params }) {
             emailOptions.replyTo = settings.businessEmail;
         }
 
-        const data = await resendClient().emails.send(emailOptions);
+        const { data, error: sendError } = await resendClient().emails.send(emailOptions);
+        if (sendError) {
+            throw new Error(`Resend rejected the invoice email: ${sendError.message}`);
+        }
 
         return NextResponse.json({ success: true, messageId: data.id });
     } catch (error) {

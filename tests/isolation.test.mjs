@@ -99,6 +99,9 @@ test('signed-out API requests are rejected', async () => {
         ['POST', '/api/attendance', { childId: 1, hours: 1 }],
         ['DELETE', '/api/attendance', { id: 1 }],
         ['POST', '/api/settings', { businessName: 'Nope' }],
+        ['POST', '/api/chat', { messages: [{ role: 'user', content: 'hi' }] }],
+        ['POST', '/api/send-invoice', { childName: 'Nope' }],
+        ['POST', '/api/invoices/1/resend'],
     ];
     for (const [method, path, body] of requests) {
         const res = await signedOut(path, { method, body });

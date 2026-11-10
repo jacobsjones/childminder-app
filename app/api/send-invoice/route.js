@@ -76,7 +76,10 @@ export async function POST(request) {
             emailOptions.replyTo = businessEmail;
         }
 
-        const data = await resend.emails.send(emailOptions);
+        const { data, error: sendError } = await resend.emails.send(emailOptions);
+        if (sendError) {
+            throw new Error(`Resend rejected the invoice email: ${sendError.message}`);
+        }
 
         // Log the invoice to history
         const children = await getChildren(user.id);
