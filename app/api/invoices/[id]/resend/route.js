@@ -5,7 +5,7 @@ import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
 import { canRebuildInvoice, invoiceInputFromRecord, storedInvoiceFileName } from '@/lib/storedInvoice';
 import { requireUser } from '@/lib/requireUser';
-import { errorResponse } from '@/lib/apiErrors';
+import { errorResponse, parseId } from '@/lib/apiErrors';
 import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,7 @@ export async function POST(request, { params }) {
     try {
         const user = await requireUser();
         const { id } = await params;
-        const invoice = await getInvoice(user.id, id);
+        const invoice = await getInvoice(user.id, parseId(id));
         if (!invoice) throw new NotFoundError('Invoice not found');
 
         if (!process.env.RESEND_API_KEY) {

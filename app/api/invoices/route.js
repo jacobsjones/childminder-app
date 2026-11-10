@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getInvoices, logInvoice } from '@/lib/serverStore';
 import { requireUser } from '@/lib/requireUser';
-import { errorResponse } from '@/lib/apiErrors';
+import { errorResponse, parseId } from '@/lib/apiErrors';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +30,7 @@ export async function POST(request) {
             );
         }
 
-        const record = await logInvoice(user.id, invoiceData);
+        const record = await logInvoice(user.id, { ...invoiceData, childId: parseId(invoiceData.childId) });
         return NextResponse.json({ success: true, invoice: record });
     } catch (error) {
         return errorResponse(error, 'Invoices API POST', 'Failed to log invoice');

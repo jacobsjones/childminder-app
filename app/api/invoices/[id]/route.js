@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getInvoice, updateInvoiceStatus, deleteInvoice } from '@/lib/serverStore';
 import { requireUser } from '@/lib/requireUser';
-import { errorResponse } from '@/lib/apiErrors';
+import { errorResponse, parseId } from '@/lib/apiErrors';
 import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
@@ -12,7 +12,7 @@ export async function GET(request, { params }) {
     try {
         const user = await requireUser();
         const { id } = await params;
-        const invoice = await getInvoice(user.id, id);
+        const invoice = await getInvoice(user.id, parseId(id));
         if (!invoice) throw new NotFoundError('Invoice not found');
         return NextResponse.json(invoice);
     } catch (error) {
@@ -34,7 +34,7 @@ export async function PATCH(request, { params }) {
             );
         }
 
-        const invoice = await updateInvoiceStatus(user.id, id, status);
+        const invoice = await updateInvoiceStatus(user.id, parseId(id), status);
         if (!invoice) throw new NotFoundError('Invoice not found');
         return NextResponse.json({ success: true, invoice });
     } catch (error) {
@@ -47,7 +47,7 @@ export async function DELETE(request, { params }) {
     try {
         const user = await requireUser();
         const { id } = await params;
-        if (!(await deleteInvoice(user.id, id))) throw new NotFoundError('Invoice not found');
+        if (!(await deleteInvoice(user.id, parseId(id)))) throw new NotFoundError('Invoice not found');
         return NextResponse.json({ success: true });
     } catch (error) {
         return errorResponse(error, 'Invoice DELETE', 'Failed to delete invoice');

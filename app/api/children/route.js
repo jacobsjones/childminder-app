@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getChildren, saveChild } from '@/lib/serverStore';
 import { requireUser } from '@/lib/requireUser';
-import { errorResponse } from '@/lib/apiErrors';
+import { errorResponse, parseId } from '@/lib/apiErrors';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +23,7 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Missing child data' }, { status: 400 });
         }
 
+        if (childData.id) childData.id = parseId(childData.id);
         const result = await saveChild(user.id, childData);
         return NextResponse.json(result.child);
     } catch (error) {

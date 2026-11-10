@@ -4,7 +4,7 @@ import {
     logHours, deleteAttendance, deleteChild,
 } from '@/lib/serverStore';
 import { requireUser } from '@/lib/requireUser';
-import { errorResponse } from '@/lib/apiErrors';
+import { errorResponse, parseId } from '@/lib/apiErrors';
 import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
@@ -13,7 +13,7 @@ export async function GET(request, { params }) {
     try {
         const user = await requireUser();
         const { id } = await params;
-        const childId = parseInt(id);
+        const childId = parseId(id);
 
         const child = await getChild(user.id, childId);
         if (!child) throw new NotFoundError('Child not found');
@@ -35,13 +35,13 @@ export async function PUT(request, { params }) {
     try {
         const user = await requireUser();
         const { id } = await params;
-        const childId = parseInt(id);
+        const childId = parseId(id);
         const body = await request.json();
         const { action, hours, date } = body;
         const recordId = body.id ?? body.recordId;
 
         if (action === 'updateAttendance' && recordId) {
-            await updateAttendance(user.id, { ...body, id: recordId, childId });
+            await updateAttendance(user.id, { ...body, id: parseId(recordId), childId });
             return NextResponse.json({ success: true });
         }
 
@@ -60,15 +60,16 @@ export async function DELETE(request, { params }) {
     try {
         const user = await requireUser();
         const { id } = await params;
+        const childId = parseId(id);
         const { deleteType, recordId } = await request.json();
 
         if (deleteType === 'attendance' && recordId) {
-            if (!(await deleteAttendance(user.id, recordId))) throw new NotFoundError('Record not found');
+            if (!(await deleteAttendance(user.id, parseId(recordId)))) throw new NotFoundError('Record not found');
             return NextResponse.json({ success: true });
         }
 
         if (deleteType === 'child') {
-            if (!(await deleteChild(user.id, parseInt(id)))) throw new NotFoundError('Child not found');
+            if (!(await deleteChild(user.id, childId))) throw new NotFoundError('Child not found');
             return NextResponse.json({ success: true });
         }
 

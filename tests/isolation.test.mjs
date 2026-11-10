@@ -78,16 +78,42 @@ before(async () => {
 
 after(async () => {
     for (const user of [alice, bob]) {
-        if (user) await as(user)('/api/auth/delete-user', { method: 'POST', body: { password: PASSWORD } });
+        if (!user) continue;
+        const res = await as(user)('/api/auth/delete-user', { method: 'POST', body: { password: PASSWORD } });
+        if (res.status !== 200) console.warn(`cleanup: deleting ${user.email} failed (${res.status})`, res.data);
     }
     await db.end();
 });
 
 test('signed-out API requests are rejected', async () => {
-    for (const path of ['/api/children', '/api/dashboard', '/api/settings', '/api/invoices', '/api/sync', `/api/children/${aliceChild.id}`]) {
-        const res = await as(null)(path);
-        assert.equal(res.status, 401, path);
+    const signedOut = as(null);
+    const requests = [
+        ['GET', '/api/children'], ['GET', '/api/dashboard'], ['GET', '/api/settings'],
+        ['GET', '/api/invoices'], ['GET', '/api/sync'], ['GET', `/api/children/${aliceChild.id}`],
+        ['GET', '/api/invoices/1'], ['GET', '/api/invoices/1/pdf'],
+        ['POST', '/api/children', { name: 'Nope' }],
+        ['PUT', '/api/children/1', { action: 'logHours', hours: 1 }],
+        ['DELETE', '/api/children/1', { deleteType: 'child' }],
+        ['PATCH', '/api/invoices/1', { status: 'Paid' }],
+        ['DELETE', '/api/invoices/1'],
+        ['POST', '/api/attendance', { childId: 1, hours: 1 }],
+        ['DELETE', '/api/attendance', { id: 1 }],
+        ['POST', '/api/settings', { businessName: 'Nope' }],
+    ];
+    for (const [method, path, body] of requests) {
+        const res = await signedOut(path, { method, body });
+        assert.equal(res.status, 401, `${method} ${path}`);
     }
+});
+
+test('a malformed id is a 404, not a server error', async () => {
+    assert.equal((await asAlice('/api/invoices/abc')).status, 404);
+    assert.equal((await asAlice('/api/invoices/abc/pdf')).status, 404);
+    assert.equal((await asAlice('/api/children/abc')).status, 404);
+    assert.equal((await asAlice('/api/children/abc', { method: 'DELETE', body: { deleteType: 'child' } })).status, 404);
+    assert.equal((await asAlice('/api/invoices/abc', { method: 'DELETE' })).status, 404);
+    assert.equal((await asAlice('/api/attendance', { method: 'POST', body: { childId: 'abc', hours: 1 } })).status, 404);
+    assert.equal((await asAlice('/api/attendance', { method: 'DELETE', body: { id: 'abc' } })).status, 404);
 });
 
 test('lists only contain your own children and hours', async () => {
@@ -96,7 +122,10 @@ test('lists only contain your own children and hours', async () => {
     assert.ok(!children.data.some((c) => c.id === aliceChild.id));
 
     const dashboard = await asBob('/api/dashboard');
+    assert.equal(dashboard.status, 200);
     assert.ok(!dashboard.data.children.some((c) => c.id === aliceChild.id));
+    const aliceDashboard = await asAlice('/api/dashboard');
+    assert.ok(aliceDashboard.data.children.some((c) => c.id === aliceChild.id));
 
     const sync = await asBob('/api/sync');
     assert.ok(!sync.data.children.some((c) => c.id === aliceChild.id));
@@ -168,9 +197,12 @@ test('deleting an account removes all of its data', async () => {
     const carol = await signUp('carol');
     const asCarol = as(carol);
     const child = (await asCarol('/api/children', { method: 'POST', body: { name: 'Carol Child', rate: 5, email: 'p@example.test' } })).data;
-    await asCarol('/api/attendance', { method: 'POST', body: { action: 'logHours', childId: child.id, hours: 2, date: '2026-11-03' } });
-    await asCarol('/api/invoices', { method: 'POST', body: { childId: child.id, childName: 'Carol Child', parentEmail: 'p@example.test', amount: 10, period: 'November 2026' } });
-    await asCarol('/api/settings', { method: 'POST', body: { businessName: 'Carol Care' } });
+    const setup = [
+        await asCarol('/api/attendance', { method: 'POST', body: { action: 'logHours', childId: child.id, hours: 2, date: '2026-11-03' } }),
+        await asCarol('/api/invoices', { method: 'POST', body: { childId: child.id, childName: 'Carol Child', parentEmail: 'p@example.test', amount: 10, period: 'November 2026' } }),
+        await asCarol('/api/settings', { method: 'POST', body: { businessName: 'Carol Care' } }),
+    ];
+    for (const res of setup) assert.ok(res.status >= 200 && res.status < 300, JSON.stringify(res));
 
     const deleted = await asCarol('/api/auth/delete-user', { method: 'POST', body: { password: PASSWORD } });
     assert.equal(deleted.status, 200, JSON.stringify(deleted.data));
