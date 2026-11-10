@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UserRound, LogOut, KeyRound, Trash2 } from 'lucide-react';
 import { authClient } from '@/lib/authClient';
 import { FormError } from '@/components/auth/AuthShell';
@@ -7,27 +7,40 @@ import { guarded } from '@/components/auth/guarded';
 
 export default function AccountSection() {
     const { data: session } = authClient.useSession();
-    // Apple-only accounts have no password to change or confirm with
-    const [hasPassword, setHasPassword] = useState(true);
+    // Apple-only accounts have no password to change or confirm with; null until known
+    const [hasPassword, setHasPassword] = useState(null);
     const [panel, setPanel] = useState(null);
     const [signOutError, setSignOutError] = useState('');
+    const [signingOut, setSigningOut] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
-        authClient.listAccounts().then(({ data }) => {
-            if (!cancelled && Array.isArray(data)) {
-                setHasPassword(data.some((a) => (a.providerId ?? a.provider) === 'credential'));
-            }
-        }).catch((error) => console.error('Could not load accounts:', error));
+        // If accounts cannot be loaded, assume a password so the full account options stay available
+        authClient.listAccounts().then(({ data, error }) => {
+            if (error) console.error('Could not load accounts:', error);
+            if (cancelled) return;
+            setHasPassword(Array.isArray(data)
+                ? data.some((a) => (a.providerId ?? a.provider) === 'credential')
+                : true);
+        }).catch((error) => {
+            console.error('Could not load accounts:', error);
+            if (!cancelled) setHasPassword(true);
+        });
         return () => { cancelled = true; };
     }, []);
 
     const signOut = async () => {
         setSignOutError('');
+        setSigningOut(true);
         await guarded(async () => {
-            await authClient.signOut();
+            const { error } = await authClient.signOut();
+            if (error) {
+                setSignOutError(error.message || 'Couldn’t sign you out. Please try again.');
+                setSigningOut(false);
+                return;
+            }
             window.location.href = '/sign-in';
-        }, setSignOutError);
+        }, (message) => { setSignOutError(message); setSigningOut(false); });
     };
 
     return (
@@ -41,22 +54,22 @@ export default function AccountSection() {
             </p>
 
             <div className="row" style={{ flexWrap: 'wrap', gap: '0.6rem' }}>
-                {hasPassword && (
-                    <button type="button" className="btn btn-outline" onClick={() => setPanel(panel === 'password' ? null : 'password')}>
+                {hasPassword === true && (
+                    <button type="button" className="btn btn-outline" aria-expanded={panel === 'password'} onClick={() => setPanel(panel === 'password' ? null : 'password')}>
                         <KeyRound size={18} /> Change password
                     </button>
                 )}
-                <button type="button" className="btn btn-outline" onClick={signOut}>
+                <button type="button" className="btn btn-outline" onClick={signOut} disabled={signingOut}>
                     <LogOut size={18} /> Sign out
                 </button>
-                <button type="button" className="btn btn-danger-soft" onClick={() => setPanel(panel === 'delete' ? null : 'delete')}>
+                <button type="button" className="btn btn-danger-soft" aria-expanded={panel === 'delete'} disabled={hasPassword === null} onClick={() => setPanel(panel === 'delete' ? null : 'delete')}>
                     <Trash2 size={18} /> Delete account
                 </button>
             </div>
 
             <FormError message={signOutError} />
-            {panel === 'password' && <ChangePasswordForm onDone={() => setPanel(null)} />}
-            {panel === 'delete' && <DeleteAccountForm hasPassword={hasPassword} onCancel={() => setPanel(null)} />}
+            {panel === 'password' && hasPassword === true && <ChangePasswordForm onDone={() => setPanel(null)} />}
+            {panel === 'delete' && hasPassword !== null && <DeleteAccountForm hasPassword={hasPassword} onCancel={() => setPanel(null)} />}
         </section>
     );
 }
@@ -67,6 +80,9 @@ function ChangePasswordForm({ onDone }) {
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const [done, setDone] = useState(false);
+    const doneTimer = useRef(null);
+
+    useEffect(() => () => clearTimeout(doneTimer.current), []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -86,7 +102,7 @@ function ChangePasswordForm({ onDone }) {
                 return;
             }
             setDone(true);
-            setTimeout(onDone, 1500);
+            doneTimer.current = setTimeout(onDone, 1500);
         }, (message) => { setError(message); setBusy(false); });
     };
 
@@ -120,7 +136,7 @@ function DeleteAccountForm({ hasPassword, onCancel }) {
                 setBusy(false);
                 if (deleteError.code === 'INVALID_PASSWORD') {
                     setError('That password isn’t right.');
-                } else if (!hasPassword) {
+                } else if (!hasPassword && deleteError.code === 'SESSION_EXPIRED') {
                     // Apple-only accounts need a recent sign-in instead of a password
                     setError('For your security, please sign out, sign back in with Apple, then try again.');
                 } else {
