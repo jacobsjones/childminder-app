@@ -40,10 +40,13 @@ export default function AppleSignInButton({ onError }) {
             }
 
             try {
-                const { identityToken } = await NativeAppleSignIn.authorize();
+                const { identityToken, name } = await NativeAppleSignIn.authorize();
+                // Apple only sends the name on the first authorization
+                const [firstName, ...rest] = (name || '').trim().split(/\s+/);
+                const user = firstName ? { name: { firstName, lastName: rest.join(' ') } } : undefined;
                 const { error } = await authClient.signIn.social({
                     provider: 'apple',
-                    idToken: { token: identityToken },
+                    idToken: { token: identityToken, user },
                 });
                 if (error) throw new Error(error.message);
                 window.location.href = '/';

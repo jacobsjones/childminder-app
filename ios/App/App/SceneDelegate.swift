@@ -45,6 +45,10 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
 
     @objc func authorize(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            if self.pendingCall != nil {
+                call.reject("Another Sign in with Apple request is in progress", "BUSY")
+                return
+            }
             let request = ASAuthorizationAppleIDProvider().createRequest()
             request.requestedScopes = [.fullName, .email]
             let controller = ASAuthorizationController(authorizationRequests: [request])
@@ -56,7 +60,11 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
     }
 
     public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        return bridge?.viewController?.view.window ?? ASPresentationAnchor()
+        if let window = bridge?.viewController?.view.window {
+            return window
+        }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return scenes.first?.windows.first(where: { $0.isKeyWindow }) ?? ASPresentationAnchor()
     }
 
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
@@ -83,7 +91,8 @@ public class AppleSignInPlugin: CAPPlugin, CAPBridgedPlugin, ASAuthorizationCont
         if let authError = error as? ASAuthorizationError, authError.code == .canceled {
             call.reject("Sign in with Apple was cancelled", "CANCELED")
         } else {
-            call.reject(error.localizedDescription)
+            let code = (error as? ASAuthorizationError).map { "APPLE_\($0.code.rawValue)" }
+            call.reject(error.localizedDescription, code)
         }
     }
 }

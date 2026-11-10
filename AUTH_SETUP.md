@@ -41,29 +41,52 @@ Apple does not allow `localhost` return URLs, so the website's Apple button can 
 
 The rehearsal on the dev branch has already been done. These steps are the real run against production.
 
-Do these in order. `.env.production-db` holds the production database connection strings plus `BETTER_AUTH_SECRET` (same value as in Vercel).
+Two databases are involved and their hosts differ: the **dev branch** (in `.env.local`, host starts with `ep-raspy-firefly`) and **production** (in `.env.production-db`). Tests and rehearsals only ever use `.env.local`. The commands below use `.env.production-db` and change real data, so follow them in order. `.env.production-db` holds the production database connection strings plus `BETTER_AUTH_SECRET` (same value as in Vercel).
+
+In the commands, replace `sue@example.com` and `Sue Example` with her real email and name (keep the quotes around the name).
 
 1. **Back up**: in Neon, create a branch named `backup-before-accounts` from `main`.
-2. **Create her account and claim the data**:
+2. **Set the production environment variables**: in Vercel → Project → Settings → Environment Variables, add these for **Production** (generate values with the command in the table above):
+   - `BETTER_AUTH_SECRET`: a new value. Put the same value in `.env.production-db`.
+   - `BETTER_AUTH_URL`: `https://childminder-app.vercel.app`
+   - `ADMIN_SECRET`: a new value.
+
+   Without `BETTER_AUTH_SECRET` the new code refuses to run in production, so this must be done before step 4. These do not take effect until the next deploy, so adding them now is harmless.
+3. **Create her account and claim the data**. First print the production host:
 
    ```
-   node --env-file=.env.production-db --import tsx scripts/create-owner.mjs --email <her email> --name "<her name>"
+   node --env-file=.env.production-db -e "console.log(new URL(process.env.POSTGRES_URL).host)"
    ```
 
-   - Run it from **PowerShell or Windows Terminal**, not Git Bash/mintty, where typing may be visible. The first time, glance at the password prompt: if the characters show as you type, stop with Ctrl+C and switch terminals.
-   - It prints `Database: <host>` and asks you to type `YES`. Check the host is the **production** host. It must not be the dev branch host, which starts with `ep-raspy-firefly`. If it is wrong, type anything else to abort; nothing is changed.
+   Then run:
+
+   ```
+   node --env-file=.env.production-db --import tsx scripts/create-owner.mjs --email sue@example.com --name "Sue Example"
+   ```
+
+   - Run it from **PowerShell or Windows Terminal**, not Git Bash/mintty. If the script prints `Note: input is not a terminal…`, or the password shows as you type, press Ctrl+C and switch terminals.
+   - It prints `Database: <host>` and asks you to type `YES`. That host must match the one printed above exactly, and must not be the dev branch host. If it is wrong, type anything else to abort; nothing is changed.
+   - Once you type `YES`, the script first adds the new columns and tables to the database. This is additive and safe: the old code ignores them, and every run does it anyway. So pressing Ctrl+C at the password prompt is also safe.
    - It asks for her password twice (at least 8 characters). Pick it, and tell her.
    - If her account already exists it does not ask for a password. It prints the account name and how many children and invoices it already owns; check these match what she has.
-   - Check that the claimed counts match what she has in the app.
-3. **Deploy**: merge to `main` (or `vercel deploy --prod`).
-4. **Finalize**:
+   - Check that the `Claimed ...` counts match what she has in the app.
+4. **Deploy**: merge to `main` (or `vercel deploy --prod`).
+5. **Finalize**:
 
    ```
-   node --env-file=.env.production-db --import tsx scripts/create-owner.mjs --email <her email> --finalize
+   node --env-file=.env.production-db --import tsx scripts/create-owner.mjs --email sue@example.com --finalize
    ```
 
-   Same checks as step 2 (terminal, host, `YES`). `--finalize` never creates an account: it refuses if the email has no account, and refuses if any unowned rows remain. It must report `Still unowned: 0 ...` and `Finalized`.
-5. **Sign her in**: open the app on her phone, sign in with her email and the password you chose. She stays signed in for 60 days, renewed every day she uses it. She can change the password in Settings → Account.
-6. **Apple**: once the Apple setup above is done (and the `APPLE_*` values are in Vercel and redeployed), build and submit the new iOS version.
+   Same checks as step 3 (terminal, host, `YES`). `--finalize` never creates an account: it refuses if the email has no account. It first claims any rows the old code created since step 3 (see the `Claimed ...` line), and refuses only if some rows are still unowned after that. It must report `Still unowned: 0 ...` and `Finalized`.
+6. **Sign her in**: open the app on her phone, sign in with her email and the password you chose. She stays signed in for 60 days, renewed every day she uses it. She can change the password in Settings → Account.
+7. **Apple**: once the Apple setup above is done (and the `APPLE_*` values are in Vercel and redeployed), build and submit the new iOS version.
 
-**If something goes wrong** before step 4: the old code ignores the new columns, so redeploying the previous version is enough. After step 4, restore from the `backup-before-accounts` branch.
+## If something goes wrong
+
+- **Before step 4 (deploy)**: nothing to undo for users. The old code ignores the new columns and tables.
+- **After the deploy, before step 5 (finalize)**: in Vercel → Deployments, open the previous production deployment and choose **Promote** (or **Instant Rollback**). The database can stay as it is.
+- **After step 5 (finalize)**: the old code can no longer add children, invoices or settings, because every row must now have an owner. Either fix the problem in the new code and redeploy, or roll back both:
+  1. Promote the previous deployment in Vercel, as above.
+  2. Restore the database from the backup: in Neon → Branches → `main` → **Restore**, choose the `backup-before-accounts` branch. (Alternatively, point the database URLs in the Vercel environment variables at the `backup-before-accounts` branch and redeploy.)
+
+  **Warning:** restoring loses everything entered since the backup was taken.
