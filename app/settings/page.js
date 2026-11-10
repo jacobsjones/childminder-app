@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Moon, Sun, Monitor, Building2, FileText, Save } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { DEFAULT_NOTES } from '@/lib/invoiceTemplate';
+import AccountSection from '@/components/AccountSection';
 
 const hintStyle = {
     color: 'var(--ink-soft)',
@@ -104,6 +105,8 @@ export default function SettingsPage() {
                 <h1 style={{ marginBottom: '0.25rem' }}>Settings</h1>
                 <p className="page-sub">Your preferences and the business details shown on invoices.</p>
             </header>
+
+            <AccountSection />
 
             {/* Appearance */}
             <section className="card" style={{ marginBottom: '1.5rem' }}>
