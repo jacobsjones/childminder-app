@@ -1,0 +1,66 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { Capacitor, registerPlugin } from '@capacitor/core';
+import { authClient } from '@/lib/authClient';
+
+// Native plugin compiled into the iOS app (ios/App/App/SceneDelegate.swift)
+const NativeAppleSignIn = registerPlugin('AppleSignIn');
+
+// 'web': redirect to Apple. 'native': the iOS sheet. null: hidden, e.g. an
+// older iOS build without the plugin, where a redirect would open Safari.
+function detectMode() {
+    if (!Capacitor.isNativePlatform()) return 'web';
+    return Capacitor.isPluginAvailable('AppleSignIn') ? 'native' : null;
+}
+
+export default function AppleSignInButton({ onError }) {
+    const [mode, setMode] = useState(null);
+    const [busy, setBusy] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setMode(detectMode()), 0);
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (!mode) return null;
+
+    const handleClick = async () => {
+        onError('');
+        setBusy(true);
+        try {
+            if (mode === 'web') {
+                // Navigates away to Apple; the callback signs in and returns to '/'
+                await authClient.signIn.social({ provider: 'apple', callbackURL: '/' });
+                return;
+            }
+
+            const { identityToken } = await NativeAppleSignIn.authorize();
+            const { error } = await authClient.signIn.social({
+                provider: 'apple',
+                idToken: { token: identityToken },
+            });
+            if (error) throw new Error(error.message);
+            window.location.href = '/';
+        } catch (error) {
+            setBusy(false);
+            if (error?.code === 'CANCELED') return;
+            console.error('Apple sign-in failed:', error);
+            onError('Sign in with Apple didn’t work. Please try again.');
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={handleClick}
+            disabled={busy}
+            className="btn btn-lg"
+            style={{ width: '100%', background: '#000', color: '#fff', gap: '0.5rem' }}
+        >
+            <svg width="16" height="19" viewBox="0 0 16 19" aria-hidden="true" fill="currentColor">
+                <path d="M13.2 10.1c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8C3.7 4.9 2.2 5.8 1.4 7.2c-1.7 2.9-.4 7.2 1.2 9.6.8 1.2 1.7 2.4 2.9 2.4 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.2 2.8-2.3.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.4-.9-2.4-4.1zM11 3.2c.6-.8 1.1-1.8 1-2.9-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.8 1 .1 2.1-.5 2.7-1.3z" />
+            </svg>
+            {busy ? 'Signing in…' : 'Sign in with Apple'}
+        </button>
+    );
+}

@@ -2,9 +2,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Users, Banknote, Settings } from 'lucide-react';
+import { isAuthPage } from '@/lib/authPaths';
 
 export default function Navigation() {
     const pathname = usePathname();
+    if (isAuthPage(pathname)) return null;
 
     const isActive = (path) => pathname === path || (path !== '/' && pathname.startsWith(path));
 

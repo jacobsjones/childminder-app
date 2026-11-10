@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Mic, MicOff, Loader2, Send, X, Sparkles } from 'lucide-react';
+import { isAuthPage } from '@/lib/authPaths';
 
 export default function VoiceAssistant() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -11,6 +12,7 @@ export default function VoiceAssistant() {
     const [isLoading, setIsLoading] = useState(false);
 
     const router = useRouter();
+    const pathname = usePathname();
     const recognitionRef = useRef(null);
     const messagesEndRef = useRef(null);
 
@@ -157,6 +159,8 @@ export default function VoiceAssistant() {
             }
         }
     };
+
+    if (isAuthPage(pathname)) return null;
 
     return (
         <>
