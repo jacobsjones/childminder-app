@@ -111,18 +111,26 @@ In the commands, replace `sue@example.com` and `Sue Example` with her real email
 
 Anyone can sign up, so invoice emails and the AI assistant are rate limited. Each limit is counted over a rolling 24 hours (not a calendar day) and can be changed with an environment variable; a missing or invalid value falls back to the default.
 
-**Who counts as new.** An account is *established* if its email is verified (the owner created by `create-owner` is, and so are Sign in with Apple accounts) or it was created more than 7 days ago. Everyone else is *new*. Normal email sign-ups cannot verify their email, so they are new for their first 7 days.
+**Her account is trusted.** The `create-owner` script marks her account as trusted (it adds her to the `trusted_accounts` table, which only you can change; no sign-up, sign-in or password-reset step can). A trusted account can send 60 invoice emails a day and is not affected by anyone else's sending.
+
+**Everyone else.** Any other account can send 20 invoice emails a day in its first 7 days, then 60 a day. On top of that, all of those accounts together can send at most 40 a day. So strangers can never use up her allowance, or the Resend free plan (100 emails a day, which also carries password-reset codes). Having a verified email does not make an account trusted, because anyone can verify an email.
 
 | Variable | Default | Protects |
 | --- | --- | --- |
-| `INVOICE_EMAILS_PER_USER_PER_DAY` | 60 | Invoice emails per established account (no shared total, so strangers cannot use up your allowance) |
-| `INVOICE_EMAILS_PER_NEW_USER_PER_DAY` | 20 | Invoice emails per new account |
-| `INVOICE_EMAILS_NEW_ACCOUNTS_TOTAL_PER_DAY` | 30 | All new accounts together, so sign-ups cannot exhaust the shared Resend sender |
-| `NEW_ACCOUNT_DAYS` | 7 | How long an unverified account counts as new |
+| `INVOICE_EMAILS_PER_USER_PER_DAY` | 60 | Invoice emails per trusted account, and per other account once it is older than `NEW_ACCOUNT_DAYS` |
+| `INVOICE_EMAILS_PER_NEW_USER_PER_DAY` | 20 | Invoice emails per account that is not trusted, during its first `NEW_ACCOUNT_DAYS` days |
+| `NEW_ACCOUNT_DAYS` | 7 | How long an account counts as new |
+| `INVOICE_EMAILS_SHARED_POOL_PER_DAY` | 40 | All accounts that are not trusted, together, so strangers cannot exhaust the shared Resend sender |
 | `ASSISTANT_REQUESTS_PER_USER_PER_DAY` | 100 | One account using the assistant as a free OpenAI proxy |
 
-The Resend free plan allows 100 emails a day, and password-reset codes use the same allowance. The established cap is per account, so a single account can send up to 60 a day; keep the new-account pool well below 100 so resets still work, and raise the numbers if you upgrade Resend.
+Keep the shared pool plus her 60 at or below the Resend plan's daily allowance, with room left for password-reset codes. If you upgrade Resend, raise these numbers.
+
+To trust another childminder later, add their user id to `trusted_accounts` (replace the email with theirs):
+
+```
+node --env-file=.env.production-db --input-type=module -e "import { sql } from '@vercel/postgres'; const r = await sql.query('INSERT INTO trusted_accounts (user_id) SELECT id FROM \x22user\x22 WHERE email = \x27their@example.com\x27 ON CONFLICT DO NOTHING RETURNING user_id'); console.log(r.rowCount ? 'trusted' : 'no such account')"
+```
 
 Also set a monthly budget limit on the OpenAI project (platform.openai.com, Settings, Limits), as a backstop to the per-account assistant limit.
 
-Usage is recorded in the `usage_events` table. It is created by the same migration (`npm run db:migrate`) that `create-owner` runs. If the production database was already migrated before this change was deployed, run the migration once more so the table exists: run the create-owner command again (it migrates and claims nothing new), or `POST /api/init-db` with the admin secret.
+Usage is recorded in the `usage_events` table, and trusted accounts in `trusted_accounts`. Both are created by the same migration (`npm run db:migrate`) that `create-owner` runs. If the production database was already migrated before this change was deployed, run the migration once more so the tables exist (and her account is marked trusted): run the create-owner command again (it migrates and claims nothing new), or `POST /api/init-db` with the admin secret.

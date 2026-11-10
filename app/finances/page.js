@@ -51,6 +51,7 @@ export default function FinancesPage() {
 
     // Per-invoice re-send and status state, keyed by invoice id
     const [resendState, setResendState] = useState({});
+    const [childrenLoadFailed, setChildrenLoadFailed] = useState(false);
     const [statusPending, setStatusPending] = useState({});
     const [deletePending, setDeletePending] = useState({});
     // 'loading' while a past invoice is being rebuilt, or the File once it is
@@ -87,6 +88,9 @@ export default function FinancesPage() {
             const childrenResponse = await fetch('/api/children');
             if (childrenResponse.ok) {
                 setChildren(await childrenResponse.json());
+                setChildrenLoadFailed(false);
+            } else {
+                setChildrenLoadFailed(true);
             }
 
             setExpenses([]);
@@ -207,6 +211,10 @@ export default function FinancesPage() {
 
     const handleResend = async (invoice) => {
         // The server sends to the child's current email, not the one stored on the invoice.
+        if (childrenLoadFailed) {
+            alert(`The children couldn\u2019t be loaded, so this invoice can\u2019t be re-sent right now. Please refresh the page and try again.`);
+            return;
+        }
         const child = children.find(c => c.id === invoice.childId);
         if (!child || !child.email) {
             alert(`This invoice can't be re-sent until ${invoice.childName} has a parent email.`);

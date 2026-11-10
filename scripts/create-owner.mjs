@@ -32,6 +32,12 @@ async function markEmailVerified(userId) {
     console.log('Marked her email as verified (so Sign in with Apple can link to this account).');
 }
 
+// She is the one account allowed the larger invoice-email allowance (see lib/usageLimits.js).
+async function markTrusted(userId) {
+    await sql`INSERT INTO trusted_accounts (user_id) VALUES (${userId}) ON CONFLICT DO NOTHING`;
+    console.log('Marked her account as trusted for invoice email limits.');
+}
+
 let muted = false;
 const rl = createInterface({
     input: process.stdin,
@@ -101,7 +107,10 @@ async function main() {
         const existing = rows[0];
         console.log(`Account already exists for ${values.email} (name: ${existing.name}); reusing it.`);
         console.log(`It already owns ${existing.children} children and ${existing.invoices} invoices.`);
-        if (!values.finalize) await markEmailVerified(userId);
+        if (!values.finalize) {
+            await markEmailVerified(userId);
+            await markTrusted(userId);
+        }
     } else {
         if (!values.name) throw new Error('--name is required to create the account');
         const password = await askPassword();
@@ -111,6 +120,7 @@ async function main() {
         userId = result.user.id;
         console.log(`Created account for ${values.email}.`);
         await markEmailVerified(userId);
+        await markTrusted(userId);
     }
 
     const claimed = await claimUnownedData(userId);

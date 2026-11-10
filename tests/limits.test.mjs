@@ -66,9 +66,22 @@ after(async () => {
     for (const u of httpUsers) await sql`DELETE FROM "user" WHERE id = ${u.userId}`;
 });
 
-async function markEstablished(userId) {
+async function markTrusted(userId) {
+    await sql`INSERT INTO trusted_accounts (user_id) VALUES (${userId}) ON CONFLICT DO NOTHING`;
+}
+
+async function markVerified(userId) {
     await sql`UPDATE "user" SET "emailVerified" = true WHERE id = ${userId}`;
 }
+
+async function backdate(userId) {
+    await sql`UPDATE "user" SET "createdAt" = now() - interval '10 days' WHERE id = ${userId}`;
+}
+
+// Tests use their own kind, so ask for the invoice-email messages explicitly.
+const INVOICE = { wording: usage.USAGE_KINDS.invoiceEmail };
+const reserve = (userId, kind, limits) => usage.reserveUsage(userId, kind, limits, INVOICE);
+const isLimit = (pattern) => (e) => e instanceof LimitError && pattern.test(e.message);
 
 test('per-user limit rejects the extra request but not another user', async () => {
     const kind = `test_per_user_${Date.now()}`;
@@ -81,50 +94,97 @@ test('per-user limit rejects the extra request but not another user', async () =
     await usage.reserveUsage(b, kind, limits);
 });
 
-test('new accounts share a pool and have a smaller per-user cap', async () => {
+test('non-trusted new accounts share a pool and have a smaller per-user cap', async () => {
     const kind = `test_pool_${Date.now()}`;
     const a = await createUnitUser('pa');
     const b = await createUnitUser('pb');
-    const limits = { perUser: 10, newPerUser: 2, newPool: 3, newAccountDays: 7 };
-    await usage.reserveUsage(a, kind, limits);
-    await usage.reserveUsage(a, kind, limits);
-    await assert.rejects(
-        () => usage.reserveUsage(a, kind, limits),
-        (e) => e instanceof LimitError && /New accounts can send 2 invoice emails a day for their first 7 days/.test(e.message)
-    );
-    await usage.reserveUsage(b, kind, limits);
-    await assert.rejects(
-        () => usage.reserveUsage(b, kind, limits),
-        (e) => e instanceof LimitError && /limit for new accounts/.test(e.message)
-    );
+    const limits = { perUser: 10, newPerUser: 2, newAccountDays: 7, pool: 3 };
+    await reserve(a, kind, limits);
+    await reserve(a, kind, limits);
+    await assert.rejects(() => reserve(a, kind, limits), isLimit(/New accounts can send 2 invoice emails a day for their first 7 days/));
+    await reserve(b, kind, limits);
+    await assert.rejects(() => reserve(b, kind, limits), isLimit(/LittleHours has reached today's email limit/));
 });
 
-test('established accounts use the larger cap and ignore the new-account pool', async () => {
-    const kind = `test_established_${Date.now()}`;
-    const fresh = await createUnitUser('ef');
-    const old = await createUnitUser('eo');
-    await markEstablished(old);
-    const limits = { perUser: 3, newPerUser: 1, newPool: 1, newAccountDays: 7 };
-    // The new account uses up the whole pool...
-    await usage.reserveUsage(fresh, kind, limits);
-    await assert.rejects(() => usage.reserveUsage(fresh, kind, limits), (e) => e instanceof LimitError);
-    // ...but the established account is unaffected, up to its own cap
-    await usage.reserveUsage(old, kind, limits);
-    await usage.reserveUsage(old, kind, limits);
-    await usage.reserveUsage(old, kind, limits);
-    await assert.rejects(
-        () => usage.reserveUsage(old, kind, limits),
-        (e) => e instanceof LimitError && /limit of 3 invoice emails/.test(e.message)
-    );
+test('a trusted account is not blocked by the shared pool or affected by others', async () => {
+    const kind = `test_trusted_${Date.now()}`;
+    const trusted = await createUnitUser('tr');
+    const stranger = await createUnitUser('st');
+    await markTrusted(trusted);
+    const limits = { perUser: 3, newPerUser: 1, newAccountDays: 7, pool: 1 };
+    // The stranger uses up the whole pool...
+    await reserve(stranger, kind, limits);
+    await assert.rejects(() => reserve(stranger, kind, limits), isLimit(/New accounts can send 1 invoice emails/));
+    // ...but the trusted account is unaffected, up to its own per-user cap
+    await reserve(trusted, kind, limits);
+    await reserve(trusted, kind, limits);
+    await reserve(trusted, kind, limits);
+    await assert.rejects(() => reserve(trusted, kind, limits), isLimit(/limit of 3 invoice emails/));
 });
 
-test('an account older than newAccountDays counts as established', async () => {
+test('a non-trusted account with a verified email is still limited (regression)', async () => {
+    const kind = `test_verified_${Date.now()}`;
+    const a = await createUnitUser('va');
+    const b = await createUnitUser('vb');
+    await markVerified(a);
+    await markVerified(b);
+    const limits = { perUser: 10, newPerUser: 2, newAccountDays: 7, pool: 3 };
+    await reserve(a, kind, limits);
+    await reserve(a, kind, limits);
+    await assert.rejects(() => reserve(a, kind, limits), isLimit(/New accounts can send 2 invoice emails/));
+    await reserve(b, kind, limits);
+    await assert.rejects(() => reserve(b, kind, limits), isLimit(/LittleHours has reached today's email limit/));
+});
+
+test('an aged non-trusted account gets the larger cap but is still in the pool', async () => {
     const kind = `test_aged_${Date.now()}`;
     const old = await createUnitUser('ag');
-    await sql`UPDATE "user" SET "createdAt" = now() - interval '10 days' WHERE id = ${old}`;
-    const limits = { perUser: 3, newPerUser: 1, newPool: 1, newAccountDays: 7 };
-    await usage.reserveUsage(old, kind, limits);
-    await usage.reserveUsage(old, kind, limits);
+    const other = await createUnitUser('ao');
+    await backdate(old);
+    const limits = { perUser: 3, newPerUser: 1, newAccountDays: 7, pool: 4 };
+    await reserve(old, kind, limits);
+    await reserve(old, kind, limits);
+    await reserve(old, kind, limits);
+    await assert.rejects(() => reserve(old, kind, limits), isLimit(/limit of 3 invoice emails/));
+    // The pool (4) holds the aged account's 3 sends: one more is fine, the next is not
+    await reserve(other, kind, limits);
+    await assert.rejects(() => reserve(other, kind, limits), isLimit(/New accounts can send 1 invoice emails/));
+    const third = await createUnitUser('a3');
+    await assert.rejects(() => reserve(third, kind, limits), isLimit(/LittleHours has reached today's email limit/));
+});
+
+test('the pool counts only non-trusted sends', async () => {
+    const kind = `test_poolcount_${Date.now()}`;
+    const trusted = await createUnitUser('pt');
+    const stranger = await createUnitUser('ps');
+    await markTrusted(trusted);
+    const limits = { perUser: 10, newPerUser: 5, newAccountDays: 7, pool: 2 };
+    for (let i = 0; i < 5; i++) await reserve(trusted, kind, limits);
+    // Five trusted sends have not touched the pool of 2
+    await reserve(stranger, kind, limits);
+    await reserve(stranger, kind, limits);
+    await assert.rejects(() => reserve(stranger, kind, limits), isLimit(/LittleHours has reached today's email limit/));
+});
+
+test('invoice-email defaults include the new-user, new-account-days and pool values', () => {
+    const names = [
+        'INVOICE_EMAILS_PER_USER_PER_DAY', 'INVOICE_EMAILS_PER_NEW_USER_PER_DAY',
+        'NEW_ACCOUNT_DAYS', 'INVOICE_EMAILS_SHARED_POOL_PER_DAY',
+    ];
+    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+    try {
+        for (const n of names) delete process.env[n];
+        assert.deepEqual(usage.defaultLimitsFor('invoice_email'), { perUser: 60, newPerUser: 20, newAccountDays: 7, pool: 40 });
+        process.env.INVOICE_EMAILS_SHARED_POOL_PER_DAY = 'banana';
+        assert.equal(usage.defaultLimitsFor('invoice_email').pool, 40);
+        process.env.INVOICE_EMAILS_SHARED_POOL_PER_DAY = '55';
+        assert.equal(usage.defaultLimitsFor('invoice_email').pool, 55);
+    } finally {
+        for (const n of names) {
+            if (saved[n] === undefined) delete process.env[n];
+            else process.env[n] = saved[n];
+        }
+    }
 });
 
 test('releaseUsage frees a slot', async () => {

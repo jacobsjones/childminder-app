@@ -152,7 +152,7 @@ export async function POST(request) {
                             result = `No attendance records for ${monthName}.`;
                         } else {
                             const totalHours = calculateTotalHours(monthAttendance);
-                            const totalCost = totalHours * child.rate;
+                            const totalCost = Math.round(totalHours * child.rate * 100) / 100;
                             const invoiceDate = new Date().toISOString();
                             const invoiceInput = { child, monthName, totalHours, rate: child.rate, totalCost, invoiceDate, settings, sessions: monthAttendance };
                             const pdfBytes = await generateInvoicePDF(invoiceInput);

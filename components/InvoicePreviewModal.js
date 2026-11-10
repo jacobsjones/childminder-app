@@ -7,6 +7,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBl
     const [isSending, setIsSending] = useState(false);
     const [sendStatus, setSendStatus] = useState(null); // 'success' | 'error'
     const [errorMessage, setErrorMessage] = useState('');
+    const [warningMessage, setWarningMessage] = useState('');
 
     if (!isOpen) return null;
 
@@ -14,13 +15,19 @@ export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBl
         setIsSending(true);
         setSendStatus(null);
         setErrorMessage('');
+        setWarningMessage('');
 
         try {
-            await onSendEmail();
+            const result = await onSendEmail();
             setSendStatus('success');
-            setTimeout(() => {
-                onClose();
-            }, 2000);
+            if (result?.warning) {
+                // Sent, but not saved to history: keep the message on screen until she closes it.
+                setWarningMessage(result.warning);
+            } else {
+                setTimeout(() => {
+                    onClose();
+                }, 2000);
+            }
         } catch (error) {
             console.error('Error sending invoice:', error);
             setErrorMessage(error?.message || '');
@@ -89,7 +96,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBl
                 {/* Status Messages */}
                 {sendStatus === 'success' && (
                     <div role="status" style={{ padding: '0.9rem', backgroundColor: 'var(--leaf-soft)', color: 'var(--leaf-deep)', textAlign: 'center', fontWeight: 600 }}>
-                        ✓ Invoice sent — nice one!
+                        {warningMessage ? `✓ Invoice sent. ${warningMessage}` : '✓ Invoice sent — nice one!'}
                     </div>
                 )}
                 {sendStatus === 'error' && (
