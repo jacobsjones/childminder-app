@@ -1,110 +1,83 @@
-import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
-import { logInvoice, getChildren, getSettings } from '@/lib/serverStore';
+import { getChild, getSettings, logInvoice } from '@/lib/serverStore';
+import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
+import { invoiceFileName } from '@/lib/invoiceTemplate';
+import { sendInvoiceEmail } from '@/lib/invoiceMail';
 import { requireUser } from '@/lib/requireUser';
-import { errorResponse } from '@/lib/apiErrors';
+import { errorResponse, parseId } from '@/lib/apiErrors';
+import { NotFoundError } from '@/lib/errors';
 
 export const runtime = 'nodejs';
 
+const MAX_HOURS = 744; // hours in a 31-day month
+
+function badRequest(message) {
+    return NextResponse.json({ error: message }, { status: 400 });
+}
+
+const isAmount = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+
+/**
+ * Email an invoice to a child's parent. The client says which child and what
+ * to bill; the recipient, PDF and email body are all built here from the
+ * stored child, so this cannot be used to send arbitrary mail.
+ */
 export async function POST(request) {
     try {
         const user = await requireUser();
-        if (!process.env.RESEND_API_KEY) {
-            console.error('RESEND_API_KEY is missing');
-            return NextResponse.json(
-                { error: 'Email service is not configured on the server.' },
-                { status: 500 }
-            );
+        const body = await request.json().catch(() => null);
+        if (!body || typeof body !== 'object') return badRequest('Invalid request.');
+
+        const { totalHours, hourlyRate, periodLabel, invoiceDate } = body;
+        if (!isAmount(totalHours) || totalHours > MAX_HOURS) return badRequest('Invalid hours.');
+        if (!isAmount(hourlyRate)) return badRequest('Invalid hourly rate.');
+        if (typeof periodLabel !== 'string' || !periodLabel.trim() || periodLabel.length > 40) {
+            return badRequest('Invalid period.');
+        }
+        if (typeof invoiceDate !== 'string' || Number.isNaN(new Date(invoiceDate).getTime())) {
+            return badRequest('Invalid invoice date.');
         }
 
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const { childName, parentEmail, totalHours, hourlyRate, totalCost, periodLabel, invoiceDate, pdfBase64, fileName } = await request.json();
-
-        // Validate required fields
-        if (!childName || !parentEmail || !pdfBase64) {
-            return NextResponse.json(
-                { error: 'Missing required fields' },
-                { status: 400 }
-            );
+        const childId = parseId(body.childId);
+        const child = await getChild(user.id, childId);
+        if (!child) throw new NotFoundError('Child not found');
+        if (!child.email) {
+            return NextResponse.json({ error: `Add a parent email for ${child.name} first.` }, { status: 409 });
         }
 
-        // Convert base64 to buffer
-        const base64Data = pdfBase64.split(',')[1]; // Remove data:application/pdf;base64, prefix
-        const pdfBuffer = Buffer.from(base64Data, 'base64');
+        const settings = await getSettings(user.id);
+        const totalCost = totalHours * hourlyRate;
+        const invoiceInput = { childName: child.name, totalHours, hourlyRate, totalCost, periodLabel, invoiceDate, settings };
 
-        // The client sends the period the invoice actually covers; older
-        // callers that omit it fall back to the current month.
-        const monthYear = periodLabel || new Date().toLocaleDateString('en-GB', {
-            month: 'long',
-            year: 'numeric'
+        const pdfBytes = await generateInvoicePDF(invoiceInput);
+        const { html, text } = buildInvoiceEmail(invoiceInput);
+
+        const messageId = await sendInvoiceEmail({
+            userId: user.id,
+            to: child.email,
+            subject: `Invoice for ${periodLabel} - ${child.name}`,
+            html,
+            text,
+            pdfBytes,
+            fileName: invoiceFileName(child.name),
+            settings,
         });
 
-        // Get settings for branding
-        const settings = await getSettings(user.id);
-        const businessName = settings.businessName || 'LittleHours';
-        const businessEmail = settings.businessEmail;
-
-        // Same model as the attached PDF, so the figures always agree
-        const { html, text } = buildInvoiceEmail({
-            childName,
+        await logInvoice(user.id, {
+            childId: child.id,
+            childName: child.name,
+            parentEmail: child.email,
+            amount: totalCost,
+            period: periodLabel,
+            // Captured so this invoice can be rebuilt and re-sent later
             totalHours,
             hourlyRate,
-            totalCost,
-            periodLabel: monthYear,
             invoiceDate,
             settings,
         });
 
-        // Send email with Resend
-        const emailOptions = {
-            from: `${businessName} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
-            to: parentEmail,
-            subject: `Invoice for ${monthYear} - ${childName}`,
-            html,
-            text,
-            attachments: [
-                {
-                    filename: fileName,
-                    content: pdfBuffer,
-                },
-            ],
-        };
-
-        // Add reply-to if business email is configured
-        if (businessEmail) {
-            emailOptions.replyTo = businessEmail;
-        }
-
-        const { data, error: sendError } = await resend.emails.send(emailOptions);
-        if (sendError) {
-            throw new Error(`Resend rejected the invoice email: ${sendError.message}`);
-        }
-
-        // Log the invoice to history
-        const children = await getChildren(user.id);
-        const child = children.find(c => c.name === childName);
-
-        if (child) {
-            await logInvoice(user.id, {
-                childId: child.id,
-                childName: childName,
-                parentEmail: parentEmail,
-                amount: parseFloat(totalCost),
-                period: monthYear,
-                // Captured so this invoice can be rebuilt and re-sent later
-                totalHours,
-                hourlyRate,
-                invoiceDate,
-                settings
-            });
-        }
-
-        return NextResponse.json({
-            success: true,
-            messageId: data.id
-        });
-
+        return NextResponse.json({ success: true, messageId });
     } catch (error) {
         return errorResponse(error, 'Send invoice', 'Failed to send invoice email');
     }

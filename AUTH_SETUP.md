@@ -106,3 +106,19 @@ In the commands, replace `sue@example.com` and `Sue Example` with her real email
   2. Promote the previous deployment in Vercel, as above.
   3. Last resort only: restore the database from the backup. In Neon, use the restore / reset-from-branch option on the `main` branch, choosing `backup-before-accounts` (the exact label may differ). **Warning:** this loses everything entered since the backup was taken.
 - **If `--finalize` refuses**: the new app works fine without finalize. Stop and investigate; it lists how many unowned rows are left.
+
+## Usage limits
+
+Anyone can sign up, so invoice emails and the AI assistant are rate limited per account. Each limit is counted over a rolling 24 hours (not a calendar day) and can be changed with an environment variable; a missing or invalid value falls back to the default.
+
+| Variable | Default | Protects |
+| --- | --- | --- |
+| `INVOICE_EMAILS_PER_USER_PER_DAY` | 60 | One account sending too many invoice emails |
+| `INVOICE_EMAILS_TOTAL_PER_DAY` | 80 | All accounts together, so the shared Resend sender is not suspended |
+| `ASSISTANT_REQUESTS_PER_USER_PER_DAY` | 100 | One account using the assistant as a free OpenAI proxy |
+
+The Resend free plan allows 100 emails a day, and password-reset codes use the same allowance. Keep `INVOICE_EMAILS_TOTAL_PER_DAY` below 100 so resets still work; raise both numbers if you upgrade Resend.
+
+Also set a monthly budget limit on the OpenAI project (platform.openai.com, Settings, Limits), as a backstop to the per-account assistant limit.
+
+Usage is recorded in the `usage_events` table. It is created by the same migration (`npm run db:migrate`) that `create-owner` runs, so no extra step is needed.

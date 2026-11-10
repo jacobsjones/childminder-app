@@ -154,6 +154,7 @@ export default function FinancesPage() {
             const invoiceDate = new Date().toISOString();
 
             const invoiceData = {
+                childId: child.id,
                 childName: child.name,
                 parentEmail: child.email || '',
                 totalHours: summary.hours,
@@ -180,7 +181,7 @@ export default function FinancesPage() {
     };
 
     const handleSendEmail = async () => {
-        const { invoiceData, pdfDataUri, fileName } = previewModal;
+        const { invoiceData } = previewModal;
 
         const response = await fetch('/api/send-invoice', {
             method: 'POST',
@@ -188,21 +189,17 @@ export default function FinancesPage() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                childName: invoiceData.childName,
-                parentEmail: invoiceData.parentEmail,
-                totalHours: invoiceData.totalHours,
-                hourlyRate: invoiceData.hourlyRate,
-                totalCost: (invoiceData.totalHours * invoiceData.hourlyRate).toFixed(2),
+                childId: invoiceData.childId,
+                totalHours: Number(invoiceData.totalHours),
+                hourlyRate: Number(invoiceData.hourlyRate),
                 periodLabel: invoiceData.periodLabel,
                 invoiceDate: invoiceData.invoiceDate,
-                pdfBase64: pdfDataUri,
-                fileName: fileName
             }),
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.details || 'Failed to send invoice');
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || 'Failed to send invoice');
         }
 
         return await response.json();

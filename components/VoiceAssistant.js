@@ -34,7 +34,7 @@ export default function VoiceAssistant() {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.details || errorData.error || 'Failed to send message');
+                throw new Error(errorData.error || errorData.details || 'Failed to send message');
             }
 
             const data = await response.json();

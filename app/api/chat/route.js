@@ -1,11 +1,14 @@
 import OpenAI from 'openai';
 import { saveChild, getChildren, logHours, getSettings, logInvoice, getAttendance } from '@/lib/serverStore';
+import { reserveUsage, USAGE_KINDS } from '@/lib/usageLimits';
+import { sendInvoiceEmail } from '@/lib/invoiceMail';
+import { invoiceFileName } from '@/lib/invoiceTemplate';
+import { LimitError } from '@/lib/errors';
 import { requireUser } from '@/lib/requireUser';
 import { errorResponse } from '@/lib/apiErrors';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
 import { parseMonthString, filterAttendanceByMonthKey, calculateTotalHours } from '@/lib/monthHelper';
-import { Resend } from 'resend';
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
@@ -14,10 +17,32 @@ const openai = new OpenAI({
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+/** 1-20 user/assistant messages of 1-2000 characters, rebuilt without extra fields; else null. */
+function cleanMessages(messages) {
+    if (!Array.isArray(messages) || messages.length < 1 || messages.length > 20) return null;
+    const clean = [];
+    for (const message of messages) {
+        if (!message || typeof message !== 'object') return null;
+        const { role, content } = message;
+        if (role !== 'user' && role !== 'assistant') return null;
+        if (typeof content !== 'string' || content.length < 1 || content.length > 2000) return null;
+        clean.push({ role, content });
+    }
+    return clean;
+}
+
 export async function POST(request) {
     try {
         const user = await requireUser();
-        const { messages } = await request.json();
+        const body = await request.json().catch(() => null);
+        const messages = cleanMessages(body?.messages);
+        if (!messages) {
+            return Response.json({ error: 'Invalid messages.' }, { status: 400 });
+        }
+
+        // Counts the request before the OpenAI call; not given back on failure
+        // because the cost is already incurred.
+        await reserveUsage(user.id, USAGE_KINDS.assistant);
 
         const response = await openai.chat.completions.create({
             model: 'gpt-4o-mini',
@@ -84,6 +109,7 @@ export async function POST(request) {
                 }
             ],
             tool_choice: 'auto',
+            max_tokens: 500,
         });
 
         const choice = response.choices[0];
@@ -131,20 +157,28 @@ export async function POST(request) {
                             const invoiceInput = { child, monthName, totalHours, rate: child.rate, totalCost, invoiceDate, settings, sessions: monthAttendance };
                             const pdfBytes = await generateInvoicePDF(invoiceInput);
                             const { html, text } = buildInvoiceEmail(invoiceInput);
-                            const resend = new Resend(process.env.RESEND_API_KEY);
-                            const { error: sendError } = await resend.emails.send({
-                                from: `${settings.businessName || 'LittleHours'} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
-                                to: child.email,
-                                ...(settings.businessEmail ? { replyTo: settings.businessEmail } : {}),
-                                subject: `Invoice for ${child.name} - ${monthName}`,
-                                html,
-                                text,
-                                attachments: [{ filename: `Invoice_${child.name}_${monthName}.pdf`, content: Buffer.from(pdfBytes) }]
-                            });
-                            if (sendError) {
-                                console.error('[Chat] Resend rejected the invoice email:', sendError);
-                                result = `The invoice email could not be sent, so nothing was sent or recorded.`;
-                            } else {
+                            let sent = false;
+                            try {
+                                await sendInvoiceEmail({
+                                    userId: user.id,
+                                    to: child.email,
+                                    subject: `Invoice for ${child.name} - ${monthName}`,
+                                    html,
+                                    text,
+                                    pdfBytes,
+                                    fileName: invoiceFileName(child.name),
+                                    settings,
+                                });
+                                sent = true;
+                            } catch (sendError) {
+                                if (sendError instanceof LimitError) {
+                                    result = sendError.message;
+                                } else {
+                                    console.error('[Chat] Invoice email failed:', sendError);
+                                    result = `The invoice email could not be sent, so nothing was sent or recorded.`;
+                                }
+                            }
+                            if (sent) {
                                 await logInvoice(user.id, {
                                     childId: child.id,
                                     childName: child.name,
@@ -178,6 +212,7 @@ export async function POST(request) {
                     assistantMessage,
                     ...toolResults
                 ],
+                max_tokens: 500,
             });
 
             return new Response(JSON.stringify({ content: finalResponse.choices[0].message.content }));

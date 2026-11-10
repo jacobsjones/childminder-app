@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node --env-file=.env.local --import tsx scripts/migrate.mjs",
+    "test:limits": "node --env-file=.env.local --import tsx --test tests/limits.test.mjs",
     "test:isolation": "node --env-file=.env.local --test tests/isolation.test.mjs"
   },
   "dependencies": {

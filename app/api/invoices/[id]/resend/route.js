@@ -1,8 +1,8 @@
-import { Resend } from 'resend';
 import { NextResponse } from 'next/server';
-import { getInvoice, getSettings } from '@/lib/serverStore';
+import { getChild, getInvoice, getSettings } from '@/lib/serverStore';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
 import { buildInvoiceEmail } from '@/lib/invoiceEmail';
+import { sendInvoiceEmail } from '@/lib/invoiceMail';
 import { canRebuildInvoice, invoiceInputFromRecord, storedInvoiceFileName } from '@/lib/storedInvoice';
 import { requireUser } from '@/lib/requireUser';
 import { errorResponse, parseId } from '@/lib/apiErrors';
@@ -24,15 +24,14 @@ export async function POST(request, { params }) {
         const invoice = await getInvoice(user.id, parseId(id));
         if (!invoice) throw new NotFoundError('Invoice not found');
 
-        if (!process.env.RESEND_API_KEY) {
-            return NextResponse.json(
-                { error: 'Email service is not configured on the server.' },
-                { status: 500 }
-            );
+        // The recipient is the child's current email. The email stored on the
+        // invoice is history only and is never used as a destination.
+        const child = invoice.childId ? await getChild(user.id, invoice.childId) : null;
+        if (!child) {
+            return NextResponse.json({ error: 'This child no longer exists, so the invoice cannot be re-sent.' }, { status: 409 });
         }
-
-        if (!invoice.parentEmail) {
-            return NextResponse.json({ error: 'This invoice has no parent email.' }, { status: 409 });
+        if (!child.email) {
+            return NextResponse.json({ error: `Add a parent email for ${child.name} first.` }, { status: 409 });
         }
 
         if (!canRebuildInvoice(invoice)) {
@@ -50,37 +49,19 @@ export async function POST(request, { params }) {
         // itself is rebuilt from the snapshot — mail must come from the address
         // that is verified today.
         const settings = await getSettings(user.id);
-        const businessName = settings.businessName || invoice.settingsSnapshot?.businessName || 'LittleHours';
-
-        const emailOptions = {
-            from: `${businessName} <${process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev'}>`,
-            to: invoice.parentEmail,
+        const messageId = await sendInvoiceEmail({
+            userId: user.id,
+            to: child.email,
             subject: `Invoice for ${invoice.period} - ${invoice.childName}`,
             html,
             text,
-            attachments: [
-                {
-                    filename: storedInvoiceFileName(invoice),
-                    content: Buffer.from(pdfBytes),
-                },
-            ],
-        };
+            pdfBytes,
+            fileName: storedInvoiceFileName(invoice),
+            settings,
+        });
 
-        if (settings.businessEmail) {
-            emailOptions.replyTo = settings.businessEmail;
-        }
-
-        const { data, error: sendError } = await resendClient().emails.send(emailOptions);
-        if (sendError) {
-            throw new Error(`Resend rejected the invoice email: ${sendError.message}`);
-        }
-
-        return NextResponse.json({ success: true, messageId: data.id });
+        return NextResponse.json({ success: true, messageId });
     } catch (error) {
         return errorResponse(error, 'Invoice resend', 'Failed to re-send invoice');
     }
-}
-
-function resendClient() {
-    return new Resend(process.env.RESEND_API_KEY);
 }
