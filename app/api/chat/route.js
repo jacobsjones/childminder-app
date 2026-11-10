@@ -3,7 +3,7 @@ import { saveChild, getChildren, logHours, getSettings, logInvoice, getAttendanc
 import { reserveUsage, USAGE_KINDS } from '@/lib/usageLimits';
 import { sendInvoiceEmail } from '@/lib/invoiceMail';
 import { invoiceFileName } from '@/lib/invoiceTemplate';
-import { LimitError } from '@/lib/errors';
+import { InvalidRecipientError, LimitError } from '@/lib/errors';
 import { requireUser } from '@/lib/requireUser';
 import { errorResponse } from '@/lib/apiErrors';
 import { generateInvoicePDF } from '@/lib/serverPdfGenerator';
@@ -162,6 +162,7 @@ export async function POST(request) {
                                 await sendInvoiceEmail({
                                     userId: user.id,
                                     to: child.email,
+                                    childName: child.name,
                                     subject: `Invoice for ${child.name} - ${monthName}`,
                                     html,
                                     text,
@@ -171,7 +172,7 @@ export async function POST(request) {
                                 });
                                 sent = true;
                             } catch (sendError) {
-                                if (sendError instanceof LimitError) {
+                                if (sendError instanceof LimitError || sendError instanceof InvalidRecipientError) {
                                     result = sendError.message;
                                 } else {
                                     console.error('[Chat] Invoice email failed:', sendError);
@@ -179,18 +180,23 @@ export async function POST(request) {
                                 }
                             }
                             if (sent) {
-                                await logInvoice(user.id, {
-                                    childId: child.id,
-                                    childName: child.name,
-                                    parentEmail: child.email,
-                                    amount: totalCost,
-                                    period: monthName,
-                                    totalHours,
-                                    hourlyRate: child.rate,
-                                    invoiceDate,
-                                    settings
-                                });
                                 result = `Invoice sent to ${child.email} for ${monthName}.`;
+                                try {
+                                    await logInvoice(user.id, {
+                                        childId: child.id,
+                                        childName: child.name,
+                                        parentEmail: child.email,
+                                        amount: totalCost,
+                                        period: monthName,
+                                        totalHours,
+                                        hourlyRate: child.rate,
+                                        invoiceDate,
+                                        settings
+                                    });
+                                } catch (logError) {
+                                    console.error('[Chat] Invoice sent, but saving to history failed:', logError);
+                                    result += ' It could not be saved to the invoice history.';
+                                }
                             }
                         }
                     }

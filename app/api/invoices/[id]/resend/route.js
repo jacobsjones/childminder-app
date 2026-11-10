@@ -52,12 +52,16 @@ export async function POST(request, { params }) {
         const messageId = await sendInvoiceEmail({
             userId: user.id,
             to: child.email,
+            childName: child.name,
             subject: `Invoice for ${invoice.period} - ${invoice.childName}`,
             html,
             text,
             pdfBytes,
             fileName: storedInvoiceFileName(invoice),
-            settings,
+            settings: {
+                ...settings,
+                businessName: settings.businessName || invoice.settingsSnapshot?.businessName,
+            },
         });
 
         return NextResponse.json({ success: true, messageId });

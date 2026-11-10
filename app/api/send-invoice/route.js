@@ -47,7 +47,7 @@ export async function POST(request) {
         }
 
         const settings = await getSettings(user.id);
-        const totalCost = totalHours * hourlyRate;
+        const totalCost = Math.round(totalHours * hourlyRate * 100) / 100;
         const invoiceInput = { childName: child.name, totalHours, hourlyRate, totalCost, periodLabel, invoiceDate, settings };
 
         const pdfBytes = await generateInvoicePDF(invoiceInput);
@@ -56,6 +56,7 @@ export async function POST(request) {
         const messageId = await sendInvoiceEmail({
             userId: user.id,
             to: child.email,
+            childName: child.name,
             subject: `Invoice for ${periodLabel} - ${child.name}`,
             html,
             text,
@@ -64,18 +65,29 @@ export async function POST(request) {
             settings,
         });
 
-        await logInvoice(user.id, {
-            childId: child.id,
-            childName: child.name,
-            parentEmail: child.email,
-            amount: totalCost,
-            period: periodLabel,
-            // Captured so this invoice can be rebuilt and re-sent later
-            totalHours,
-            hourlyRate,
-            invoiceDate,
-            settings,
-        });
+        // The email is already out, so a failure to record it must not look like
+        // a failed send (the user would retry and the parent would get it twice).
+        try {
+            await logInvoice(user.id, {
+                childId: child.id,
+                childName: child.name,
+                parentEmail: child.email,
+                amount: totalCost,
+                period: periodLabel,
+                // Captured so this invoice can be rebuilt and re-sent later
+                totalHours,
+                hourlyRate,
+                invoiceDate,
+                settings,
+            });
+        } catch (logError) {
+            console.error('[Send invoice] Sent, but saving to history failed:', logError);
+            return NextResponse.json({
+                success: true,
+                messageId,
+                warning: 'Sent, but it could not be saved to the invoice history.',
+            });
+        }
 
         return NextResponse.json({ success: true, messageId });
     } catch (error) {

@@ -206,8 +206,14 @@ export default function FinancesPage() {
     };
 
     const handleResend = async (invoice) => {
+        // The server sends to the child's current email, not the one stored on the invoice.
+        const child = children.find(c => c.id === invoice.childId);
+        if (!child || !child.email) {
+            alert(`This invoice can't be re-sent until ${invoice.childName} has a parent email.`);
+            return;
+        }
         const confirmed = window.confirm(
-            `Re-send the ${invoice.period} invoice for ${invoice.childName} to ${invoice.parentEmail}?`
+            `Re-send the ${invoice.period} invoice for ${invoice.childName} to ${child.email}?`
         );
         if (!confirmed) return;
 

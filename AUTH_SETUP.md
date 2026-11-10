@@ -109,16 +109,20 @@ In the commands, replace `sue@example.com` and `Sue Example` with her real email
 
 ## Usage limits
 
-Anyone can sign up, so invoice emails and the AI assistant are rate limited per account. Each limit is counted over a rolling 24 hours (not a calendar day) and can be changed with an environment variable; a missing or invalid value falls back to the default.
+Anyone can sign up, so invoice emails and the AI assistant are rate limited. Each limit is counted over a rolling 24 hours (not a calendar day) and can be changed with an environment variable; a missing or invalid value falls back to the default.
+
+**Who counts as new.** An account is *established* if its email is verified (the owner created by `create-owner` is, and so are Sign in with Apple accounts) or it was created more than 7 days ago. Everyone else is *new*. Normal email sign-ups cannot verify their email, so they are new for their first 7 days.
 
 | Variable | Default | Protects |
 | --- | --- | --- |
-| `INVOICE_EMAILS_PER_USER_PER_DAY` | 60 | One account sending too many invoice emails |
-| `INVOICE_EMAILS_TOTAL_PER_DAY` | 80 | All accounts together, so the shared Resend sender is not suspended |
+| `INVOICE_EMAILS_PER_USER_PER_DAY` | 60 | Invoice emails per established account (no shared total, so strangers cannot use up your allowance) |
+| `INVOICE_EMAILS_PER_NEW_USER_PER_DAY` | 20 | Invoice emails per new account |
+| `INVOICE_EMAILS_NEW_ACCOUNTS_TOTAL_PER_DAY` | 30 | All new accounts together, so sign-ups cannot exhaust the shared Resend sender |
+| `NEW_ACCOUNT_DAYS` | 7 | How long an unverified account counts as new |
 | `ASSISTANT_REQUESTS_PER_USER_PER_DAY` | 100 | One account using the assistant as a free OpenAI proxy |
 
-The Resend free plan allows 100 emails a day, and password-reset codes use the same allowance. Keep `INVOICE_EMAILS_TOTAL_PER_DAY` below 100 so resets still work; raise both numbers if you upgrade Resend.
+The Resend free plan allows 100 emails a day, and password-reset codes use the same allowance. The established cap is per account, so a single account can send up to 60 a day; keep the new-account pool well below 100 so resets still work, and raise the numbers if you upgrade Resend.
 
 Also set a monthly budget limit on the OpenAI project (platform.openai.com, Settings, Limits), as a backstop to the per-account assistant limit.
 
-Usage is recorded in the `usage_events` table. It is created by the same migration (`npm run db:migrate`) that `create-owner` runs, so no extra step is needed.
+Usage is recorded in the `usage_events` table. It is created by the same migration (`npm run db:migrate`) that `create-owner` runs. If the production database was already migrated before this change was deployed, run the migration once more so the table exists: run the create-owner command again (it migrates and claims nothing new), or `POST /api/init-db` with the admin secret.

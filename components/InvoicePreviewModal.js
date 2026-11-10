@@ -6,12 +6,14 @@ import { savePdfFile } from '@/lib/savePdf';
 export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBlob, fileName, invoiceData, onSendEmail }) {
     const [isSending, setIsSending] = useState(false);
     const [sendStatus, setSendStatus] = useState(null); // 'success' | 'error'
+    const [errorMessage, setErrorMessage] = useState('');
 
     if (!isOpen) return null;
 
     const handleSendEmail = async () => {
         setIsSending(true);
         setSendStatus(null);
+        setErrorMessage('');
 
         try {
             await onSendEmail();
@@ -21,6 +23,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBl
             }, 2000);
         } catch (error) {
             console.error('Error sending invoice:', error);
+            setErrorMessage(error?.message || '');
             setSendStatus('error');
         } finally {
             setIsSending(false);
@@ -91,7 +94,7 @@ export default function InvoicePreviewModal({ isOpen, onClose, pdfDataUri, pdfBl
                 )}
                 {sendStatus === 'error' && (
                     <div role="alert" style={{ padding: '0.9rem', backgroundColor: 'var(--berry-soft)', color: 'var(--berry-deep)', textAlign: 'center', fontWeight: 600 }}>
-                        Couldn&apos;t send it — please try again.
+                        {errorMessage || 'Couldn’t send it — please try again.'}
                     </div>
                 )}
             </div>
