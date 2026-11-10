@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, ChevronLeft, ChevronRight, Sun } from 'lucide-react';
 import HoursLogModal from '@/components/HoursLogModal';
+import { authClient } from '@/lib/authClient';
 
 const nameHash = (name) => name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
@@ -13,6 +14,8 @@ const STAGGER = [36, 52, 28, 44];
 const stemHeight = (hours) => Math.max(10, Math.min(10 + hours * 6, 64));
 
 export default function Dashboard() {
+    const { data: session } = authClient.useSession();
+    const firstName = session?.user?.name?.trim().split(/\s+/)[0];
     const [children, setChildren] = useState([]);
     const [loading, setLoading] = useState(true);
     const [modalState, setModalState] = useState({ isOpen: false, childId: null, childName: '', initialHours: 0 });
@@ -122,7 +125,7 @@ export default function Dashboard() {
                 <div className="sun-blob" aria-hidden="true">
                     <Sun size={26} strokeWidth={2.2} />
                 </div>
-                <h1 style={{ margin: '1rem 0 0.15rem' }}>Hey Sue!</h1>
+                <h1 style={{ margin: '1rem 0 0.15rem' }}>Hey {firstName || 'there'}!</h1>
                 <p className="page-sub" style={{ marginTop: 0 }}>
                     {weekday}
                     {!loading && children.length > 0 && (

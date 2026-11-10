@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { authClient } from '@/lib/authClient';
+import { guarded } from '@/components/auth/guarded';
 
 // Native plugin compiled into the iOS app (ios/App/App/SceneDelegate.swift)
 const NativeAppleSignIn = registerPlugin('AppleSignIn');
@@ -12,6 +13,8 @@ function detectMode() {
     if (!Capacitor.isNativePlatform()) return 'web';
     return Capacitor.isPluginAvailable('AppleSignIn') ? 'native' : null;
 }
+
+const APPLE_ERROR = 'Sign in with Apple didn’t work. Please try again.';
 
 export default function AppleSignInButton({ onError }) {
     const [mode, setMode] = useState(null);
@@ -27,29 +30,33 @@ export default function AppleSignInButton({ onError }) {
     const handleClick = async () => {
         onError('');
         setBusy(true);
-        try {
+        const fail = (message) => { setBusy(false); onError(message); };
+        await guarded(async () => {
             if (mode === 'web') {
                 // Navigates away to Apple; the callback signs in and returns to '/'
-                await authClient.signIn.social({ provider: 'apple', callbackURL: '/' });
+                const { error } = await authClient.signIn.social({ provider: 'apple', callbackURL: '/' });
+                if (error) fail(error.message || APPLE_ERROR);
                 return;
             }
 
-            const { identityToken } = await NativeAppleSignIn.authorize();
-            const { error } = await authClient.signIn.social({
-                provider: 'apple',
-                idToken: { token: identityToken },
-            });
-            if (error) throw new Error(error.message);
-            window.location.href = '/';
-        } catch (error) {
-            setBusy(false);
-            if (error?.code === 'CANCELED') return;
-            console.error('Apple sign-in failed:', error);
-            onError('Sign in with Apple didn’t work. Please try again.');
-        }
+            try {
+                const { identityToken } = await NativeAppleSignIn.authorize();
+                const { error } = await authClient.signIn.social({
+                    provider: 'apple',
+                    idToken: { token: identityToken },
+                });
+                if (error) throw new Error(error.message);
+                window.location.href = '/';
+            } catch (error) {
+                if (error?.code === 'CANCELED') return setBusy(false);
+                console.error('Apple sign-in failed:', error);
+                fail(APPLE_ERROR);
+            }
+        }, fail);
     };
 
     return (
+        <>
         <button
             type="button"
             onClick={handleClick}
@@ -62,5 +69,7 @@ export default function AppleSignInButton({ onError }) {
             </svg>
             {busy ? 'Signing in…' : 'Sign in with Apple'}
         </button>
+        <p style={{ textAlign: 'center', color: 'var(--ink-soft)', margin: '1rem 0', fontSize: '0.9rem' }}>or</p>
+        </>
     );
 }

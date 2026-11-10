@@ -3,6 +3,7 @@
 export default function AuthShell({ title, subtitle, children }) {
     return (
         <main
+            className="auth-shell"
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -15,6 +16,7 @@ export default function AuthShell({ title, subtitle, children }) {
                 zIndex: 'var(--z-drawer)',
             }}
         >
+            <style>{'.auth-shell a { color: var(--leaf-deep); }'}</style>
             <div style={{ width: '100%', maxWidth: '420px' }}>
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                     <span className="brand" style={{ justifyContent: 'center' }}>

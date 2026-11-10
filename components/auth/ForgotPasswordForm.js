@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { authClient } from '@/lib/authClient';
 import AuthShell, { FormError } from '@/components/auth/AuthShell';
+import { guarded } from '@/components/auth/guarded';
 
 // Two steps: email us your address, then type the 6-digit code with a new
 // password. A typed code works inside the iOS app, unlike an email link.
@@ -18,27 +19,31 @@ export default function ForgotPasswordForm() {
         e.preventDefault();
         setBusy(true);
         setError('');
-        const { error: sendError } = await authClient.emailOtp.requestPasswordReset({ email });
-        setBusy(false);
-        if (sendError) {
-            setError(sendError.message || 'Couldn’t send the code. Please try again.');
-            return;
-        }
-        setStep('code');
+        await guarded(async () => {
+            const { error: sendError } = await authClient.emailOtp.requestPasswordReset({ email });
+            setBusy(false);
+            if (sendError) {
+                setError(sendError.message || 'Couldn’t send the code. Please try again.');
+                return;
+            }
+            setStep('code');
+        }, (message) => { setError(message); setBusy(false); });
     };
 
     const resetPassword = async (e) => {
         e.preventDefault();
         setBusy(true);
         setError('');
-        const { error: resetError } = await authClient.emailOtp.resetPassword({ email, otp, password });
-        if (resetError) {
-            setError(resetError.message || 'That code didn’t work. Please check it and try again.');
-            setBusy(false);
-            return;
-        }
-        const { error: signInError } = await authClient.signIn.email({ email, password, rememberMe: true });
-        window.location.href = signInError ? '/sign-in' : '/';
+        await guarded(async () => {
+            const { error: resetError } = await authClient.emailOtp.resetPassword({ email, otp, password });
+            if (resetError) {
+                setError(resetError.message || 'That code didn’t work. Please check it and try again.');
+                setBusy(false);
+                return;
+            }
+            const { error: signInError } = await authClient.signIn.email({ email, password, rememberMe: true });
+            window.location.href = signInError ? '/sign-in' : '/';
+        }, (message) => { setError(message); setBusy(false); });
     };
 
     if (step === 'email') {
@@ -47,7 +52,7 @@ export default function ForgotPasswordForm() {
                 <FormError message={error} />
                 <form onSubmit={sendCode}>
                     <label htmlFor="email">Email</label>
-                    <input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <input id="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} value={email} onChange={(e) => setEmail(e.target.value)} required />
                     <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={busy}>
                         {busy ? 'Sending…' : 'Send code'}
                     </button>
