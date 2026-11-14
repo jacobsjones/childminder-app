@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Moon, Sun, Monitor, Building2, FileText, Save } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { DEFAULT_NOTES } from '@/lib/invoiceTemplate';
@@ -345,6 +346,12 @@ export default function SettingsPage() {
                     {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save settings'}
                 </button>
             </form>
+
+            <p style={{ marginTop: '2rem', fontSize: '0.95rem', color: 'var(--ink-soft)' }}>
+                <Link href="/support" style={{ color: 'var(--leaf-deep)' }}>Help &amp; support</Link>
+                {' · '}
+                <Link href="/privacy" style={{ color: 'var(--leaf-deep)' }}>Privacy policy</Link>
+            </p>
         </main>
     );
 }

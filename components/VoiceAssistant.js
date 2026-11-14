@@ -1,11 +1,33 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { Mic, MicOff, Loader2, Send, X, Sparkles } from 'lucide-react';
+import { Mic, MicOff, Loader2, Send, X, Sparkles, ShieldCheck } from 'lucide-react';
 import { isAuthPage } from '@/lib/authPaths';
+
+// Apple requires explicit permission before personal data is shared with a
+// third-party AI. Asked once per device, before the assistant's first use.
+const AI_CONSENT_KEY = 'assistant_ai_consent_v1';
+
+function readAiConsent() {
+    try {
+        return localStorage.getItem(AI_CONSENT_KEY) === 'granted';
+    } catch {
+        return false;
+    }
+}
+
+function saveAiConsent() {
+    try {
+        localStorage.setItem(AI_CONSENT_KEY, 'granted');
+    } catch {
+        // Storage blocked: consent lasts for this visit only.
+    }
+}
 
 export default function VoiceAssistant() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [hasAiConsent, setHasAiConsent] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [messages, setMessages] = useState([]);
@@ -15,10 +37,30 @@ export default function VoiceAssistant() {
     const pathname = usePathname();
     const recognitionRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const hasAiConsentRef = useRef(false);
+
+    const toggleDrawer = () => {
+        const opening = !isDrawerOpen;
+        if (opening) {
+            const consented = readAiConsent();
+            hasAiConsentRef.current = consented;
+            setHasAiConsent(consented);
+        }
+        setIsDrawerOpen(opening);
+    };
+
+    const allowAi = () => {
+        saveAiConsent();
+        hasAiConsentRef.current = true;
+        setHasAiConsent(true);
+    };
 
     // Send message to API directly
     const sendMessage = async (content) => {
         if (!content.trim() || isLoading) return;
+        // A ref, not state: speech recognition calls the copy of this
+        // function captured on first render.
+        if (!hasAiConsentRef.current) return;
 
         const userMessage = { role: 'user', content: content.trim() };
         const updatedMessages = [...messages, userMessage];
@@ -166,7 +208,7 @@ export default function VoiceAssistant() {
         <>
             {/* Floating Action Button */}
             <button
-                onClick={() => setIsDrawerOpen(!isDrawerOpen)}
+                onClick={toggleDrawer}
                 className="assistant-fab"
                 title={isDrawerOpen ? 'Close assistant' : 'Ask the assistant'}
                 aria-label={isDrawerOpen ? 'Close assistant' : 'Open assistant'}
@@ -197,6 +239,33 @@ export default function VoiceAssistant() {
                         </button>
                     </div>
 
+                    {!hasAiConsent ? (
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column' }}>
+                            <div className="row" style={{ gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                <ShieldCheck size={22} color="var(--leaf)" aria-hidden="true" />
+                                <h4 style={{ margin: 0, fontSize: '1.1rem' }}>Before you start</h4>
+                            </div>
+                            <p style={{ margin: '0 0 0.75rem', lineHeight: 1.55 }}>
+                                The assistant uses <strong>OpenAI</strong> to understand your requests.
+                            </p>
+                            <p style={{ margin: '0 0 0.75rem', lineHeight: 1.55, color: 'var(--ink-soft)' }}>
+                                When you use it, what you type or say is sent to OpenAI, along with the details it needs to
+                                answer, such as children’s names and logged hours. OpenAI doesn’t use this to train its models.
+                            </p>
+                            <p style={{ margin: '0 0 1.25rem', lineHeight: 1.55, color: 'var(--ink-soft)' }}>
+                                Everything else in LittleHours works without the assistant.{' '}
+                                <Link href="/privacy" style={{ color: 'var(--leaf-deep)' }}>Privacy policy</Link>
+                            </p>
+                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <button type="button" className="btn btn-primary btn-lg" onClick={allowAi}>
+                                    Allow and continue
+                                </button>
+                                <button type="button" className="btn btn-ghost" onClick={() => setIsDrawerOpen(false)}>
+                                    Not now
+                                </button>
+                            </div>
+                        </div>
+                    ) : (<>
                     {/* Message History */}
                     <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {messages.length === 0 ? (
@@ -306,6 +375,7 @@ export default function VoiceAssistant() {
                             <Send size={19} />
                         </button>
                     </form>
+                    </>)}
                 </div>
             )}
 

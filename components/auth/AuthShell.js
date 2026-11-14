@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 // Full-screen centred card for the signed-out pages. Fixed so it is not
 // pushed sideways by the desktop sidebar's body padding.
 export default function AuthShell({ title, subtitle, children }) {
@@ -29,6 +31,11 @@ export default function AuthShell({ title, subtitle, children }) {
                     {subtitle && <p className="page-sub" style={{ marginBottom: '1.5rem' }}>{subtitle}</p>}
                     {children}
                 </section>
+                <p style={{ marginTop: '1.25rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--ink-soft)' }}>
+                    <Link href="/privacy">Privacy policy</Link>
+                    {' · '}
+                    <Link href="/support">Help &amp; support</Link>
+                </p>
             </div>
         </main>
     );
