@@ -181,7 +181,7 @@ p { max-width: 70ch; }
   max-width: 100%;
   width: 100%;
   margin: 0 auto;
-  padding: 1.25rem 1rem;
+  padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1rem 1.25rem;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -671,7 +671,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   align-items: center;
   justify-content: center;
   z-index: var(--z-backdrop);
-  padding: 1rem;
+  padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
   animation: fadeIn var(--t-fast) var(--ease-out);
 }
 

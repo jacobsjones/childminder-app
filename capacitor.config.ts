@@ -12,9 +12,12 @@ const config: CapacitorConfig = {
     url: 'https://childminder-app.vercel.app',
     errorPath: 'offline.html',
   },
+  // The page draws under the status bar and home indicator (viewport-fit=cover
+  // in app/layout.js) and pads itself with env(safe-area-inset-*), so its own
+  // themed background fills the whole screen. A fixed colour or 'automatic'
+  // insets left a light strip behind the status bar in dark mode.
   ios: {
-    contentInset: 'automatic',
-    backgroundColor: '#f3f8f3',
+    contentInset: 'never',
   },
 };
 

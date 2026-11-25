@@ -1,5 +1,15 @@
 'use client';
 import { createContext, useContext, useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+
+// In the iOS app, match the status bar text to the app's theme rather than
+// the phone's, so the time and battery stay readable when the user picks a
+// theme in Settings. Older app builds without the plugin skip this.
+function syncStatusBar(activeTheme) {
+    if (!Capacitor.isNativePlatform() || !Capacitor.isPluginAvailable('StatusBar')) return;
+    StatusBar.setStyle({ style: activeTheme === 'dark' ? Style.Dark : Style.Light }).catch(() => {});
+}
 
 const ThemeContext = createContext({
     theme: 'system',
@@ -33,6 +43,7 @@ export function ThemeProvider({ children }) {
             } else {
                 root.removeAttribute('data-theme');
             }
+            syncStatusBar(activeTheme);
         };
 
         applyTheme();

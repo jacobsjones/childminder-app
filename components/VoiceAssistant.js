@@ -424,6 +424,8 @@ export default function VoiceAssistant() {
                     z-index: var(--z-drawer);
                     display: flex;
                     flex-direction: column;
+                    /* Keeps the message box above the iPhone home indicator */
+                    padding-bottom: env(safe-area-inset-bottom, 0px);
                     animation: drawerUp var(--t-med) var(--ease-out);
                 }
 

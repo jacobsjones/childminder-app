@@ -26,6 +26,9 @@ export const viewport = {
     initialScale: 1,
     maximumScale: 1,
     userScalable: false,
+    // Lets the page fill the screen behind the iPhone status bar; the layout
+    // pads itself with env(safe-area-inset-*).
+    viewportFit: 'cover',
     themeColor: [
         { media: '(prefers-color-scheme: light)', color: '#f3f8f3' },
         { media: '(prefers-color-scheme: dark)', color: '#1c211d' },
