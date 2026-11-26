@@ -146,6 +146,23 @@ body::-webkit-scrollbar {
   display: none;
 }
 
+/* In the iPhone app the page reaches the top of the screen, so scrolled
+   content would slide under the time and battery. This strip, the height of
+   the status bar, keeps that area the page's own colour. Above the full-screen
+   sign-in and policy pages (z-drawer), below modal backdrops, which dim it.
+   Normal browsers report a zero inset, so it has no height there. */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: var(--bg);
+  z-index: 75;
+  pointer-events: none;
+}
+
 h1, h2, h3 {
   font-family: var(--font-display);
   font-weight: 600;
@@ -538,6 +555,21 @@ input, select, textarea {
   width: 100%;
   margin-bottom: 1rem;
   transition: border-color var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
+}
+
+/* iPhone date and time pickers keep a native minimum width that ignores
+   width: 100%, so two side by side spill out of their card. Dropping the
+   native look lets them shrink; min-height stops an empty one collapsing. */
+input[type='date'], input[type='time'], input[type='datetime-local'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  min-height: 3.2rem;
+}
+
+input::-webkit-date-and-time-value {
+  text-align: left;
 }
 
 input::placeholder, textarea::placeholder {

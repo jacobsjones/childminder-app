@@ -171,7 +171,7 @@ export default function SettingsPage() {
                                 type="text"
                                 value={businessSettings.businessName}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, businessName: e.target.value })}
-                                placeholder="e.g. Sue's Childcare"
+                                placeholder="e.g. Little Acorns Childcare"
                                 required
                             />
 
@@ -181,7 +181,7 @@ export default function SettingsPage() {
                                 type="email"
                                 value={businessSettings.businessEmail}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, businessEmail: e.target.value })}
-                                placeholder="e.g. sue@childcare.com"
+                                placeholder="e.g. you@example.com"
                                 required
                             />
 
@@ -201,7 +201,7 @@ export default function SettingsPage() {
                                 type="text"
                                 value={businessSettings.accountName}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, accountName: e.target.value })}
-                                placeholder="e.g. S. Jones"
+                                placeholder="e.g. J. Smith"
                                 required
                             />
 
@@ -268,7 +268,7 @@ export default function SettingsPage() {
                                 type="text"
                                 value={businessSettings.providerName}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, providerName: e.target.value })}
-                                placeholder="e.g. Susan Stevenson"
+                                placeholder="e.g. Jane Smith"
                             />
 
                             <label htmlFor="business-address">Address</label>
@@ -276,7 +276,7 @@ export default function SettingsPage() {
                                 id="business-address"
                                 value={businessSettings.businessAddress}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, businessAddress: e.target.value })}
-                                placeholder={'26 Garden wood Road\nEast Grinstead\nWest Sussex\nRH19 1NL'}
+                                placeholder={'1 High Street\nAnytown\nAN1 2BC'}
                                 rows={4}
                                 style={{ resize: 'vertical' }}
                             />
@@ -288,7 +288,7 @@ export default function SettingsPage() {
                                 type="text"
                                 value={businessSettings.registrationNumber}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, registrationNumber: e.target.value })}
-                                placeholder="e.g. EY266859"
+                                placeholder="e.g. EY123456"
                             />
 
                             <label htmlFor="unavailable-dates">Unavailable dates for this year</label>
@@ -296,7 +296,7 @@ export default function SettingsPage() {
                                 id="unavailable-dates"
                                 value={businessSettings.unavailableDates}
                                 onChange={(e) => setBusinessSettings({ ...businessSettings, unavailableDates: e.target.value })}
-                                placeholder={'Wednesday 29th July\nMonday August 24th until Saturday 5th September'}
+                                placeholder={'Monday 24th August\nMonday 21st December until Friday 1st January'}
                                 rows={4}
                                 style={{ resize: 'vertical' }}
                             />

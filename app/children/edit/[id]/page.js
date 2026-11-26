@@ -210,8 +210,8 @@ export default function EditProfile() {
                             </div>
 
                             <h4 style={{ marginBottom: '0.6rem' }}>Usual hours</h4>
-                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                <div style={{ flex: 1, minWidth: '140px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem' }}>
+                                <div style={{ minWidth: 0 }}>
                                     <label htmlFor="dropoff">Drop-off</label>
                                     <input
                                         id="dropoff"
@@ -221,7 +221,7 @@ export default function EditProfile() {
                                         style={{ marginBottom: 0 }}
                                     />
                                 </div>
-                                <div style={{ flex: 1, minWidth: '140px' }}>
+                                <div style={{ minWidth: 0 }}>
                                     <label htmlFor="pickup">Pick-up</label>
                                     <input
                                         id="pickup"

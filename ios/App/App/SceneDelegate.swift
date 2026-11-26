@@ -24,10 +24,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 }
 
-/// Registers plugins that are part of this app rather than an npm package.
+/// Registers plugins that are part of this app rather than an npm package,
+/// and makes the web view feel like an app rather than a web page.
 class AppViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(AppleSignInPlugin())
+
+        if let scrollView = webView?.scrollView {
+            // No web-style scroll bar down the right-hand edge.
+            scrollView.showsVerticalScrollIndicator = false
+            scrollView.showsHorizontalScrollIndicator = false
+            // No rubber-band past the top or bottom of the page, which showed
+            // a plain strip that doesn't follow the app's light/dark theme.
+            scrollView.bounces = false
+        }
     }
 }
 
